@@ -1,79 +1,83 @@
 # Gentle Start
 
-**让新玩家有时间站稳脚跟，再迎接生存的挑战。**
+> Designed and written for the servers I manage. Generated entirely by gpt-6-astra. Use at your own risk.
 
-Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器的玩家提供可配置的保护：死亡保留物品与经验、原地免死、重生无敌、PvP 保护，以及更多生存辅助。
+English | [简体中文](README.zh-CN.md)
 
-保护按玩家在本服的累计游玩时间计算，也可以在获得物品、完成进度或达到指定等级后自动结束。你可以为整个服务器设置统一规则，也可以为某位玩家单独调整。
+**Give new players time to find their footing before facing the challenges of survival.**
 
-**仅需服务端安装 · 客户端无需安装本模组 · 支持原版客户端**
+Gentle Start is a Minecraft Fabric server mod that provides configurable protection for new players: keeping items and experience on death, preventing lethal damage from causing death, respawn invulnerability, PvP protection, and other survival assistance.
 
-[功能](#功能) · [安装](#安装) · [配置](#配置) · [命令](#命令) · [常见问题](#常见问题) · [构建](#构建)
+Protection is based on a player's cumulative playtime on your server. It can also end automatically when they obtain an item, complete an advancement, or reach a specified experience level. Set rules for the entire server or override them for individual players.
 
-## 功能
+**Install on the server only · No client mod required · Vanilla clients supported**
 
-默认配置会在玩家累计游玩不足 **120 分钟** 时保留死亡物品、全部经验和死亡界面分数，并提供抗性 I、夜视 I。其他保护默认关闭，可按需启用。
+[Features](#features) · [Installation](#installation) · [Configuration](#configuration) · [Commands](#commands) · [FAQ](#faq) · [Building](#building)
 
-| 功能 | 能做什么 | 配置名称 |
+## Features
+
+By default, players with less than **120 minutes** of cumulative playtime keep their items, all experience, and death-screen score on death, and receive Resistance I and Night Vision I. Other protections are disabled by default and can be enabled as needed.
+
+| Feature | Behavior | Configuration name |
 | --- | --- | --- |
-| 物品保留 | 死亡后保留全部物品，或按类别、物品、标签、槽位筛选 | `keepInventory` |
-| 经验保留 | 保留全部或指定比例的可用经验 | `keepExperience` |
-| 分数保留 | 保留死亡界面中的原版分数 | `keepScore` |
-| 原地免死 | 抵挡致命伤害，恢复指定生命值，可限制次数并附加效果 | `preventDeath` |
-| 重生无敌 | 真正死亡重生后，短暂免疫普通伤害；与免死无敌独立 | `respawnInvulnerability` |
-| 掉落保护 | 延长死亡掉落的存在时间，防火、抵抗普通伤害并禁止合并 | `protectDeathDrops` |
-| 状态效果 | 在保护期间持续提供可配置的药水效果 | `protectionEffects` |
-| PvP 保护 | 阻止玩家伤害，可在主动攻击后解除保护 | `pvpProtection` |
-| 伤害减免 | 按比例降低受到的普通伤害 | `damageReduction` |
-| 怪物感知范围 | 缩小怪物发现和持续追踪玩家的范围 | `mobDetectionRange` |
+| Keep inventory | Keep all items on death, or select by category, item, tag, or slot | `keepInventory` |
+| Keep experience | Keep all or a configurable fraction of spendable experience | `keepExperience` |
+| Keep score | Keep the vanilla score shown on the death screen | `keepScore` |
+| Prevent death | Survive lethal damage and restore health, with configurable uses and additional effects | `preventDeath` |
+| Respawn invulnerability | Temporarily block ordinary damage after an actual death and respawn, independently of death-prevention invulnerability | `respawnInvulnerability` |
+| Protect death drops | Extend the lifetime of death drops, protect them from fire and ordinary damage, and prevent merging | `protectDeathDrops` |
+| Status effects | Continuously apply configurable effects during protection | `protectionEffects` |
+| PvP protection | Block damage from players, optionally ending protection when attacking another player | `pvpProtection` |
+| Damage reduction | Reduce ordinary incoming damage by a configurable fraction | `damageReduction` |
+| Mob detection range | Reduce the range at which mobs detect and track protected players | `mobDetectionRange` |
 
-每项功能的期限和结束条件都可以独立设置。保护状态、免死次数与取消记录会随世界保存。
+Each feature has its own duration and cancellation conditions. Protection state, consumed death-prevention uses, and cancellation records are saved with the world.
 
-## 安装
+## Installation
 
-| 环境 | 要求 |
+| Component | Requirement |
 | --- | --- |
 | Minecraft Java Edition | 26.2 |
-| 模组加载器 | Fabric Loader 0.19.5 或更高版本 |
-| 依赖 | 对应 Minecraft 版本的 Fabric API；项目使用 0.161.0+26.2 构建 |
-| Java | 25 或更高版本；源码构建使用 JDK 25 |
-| 安装位置 | 服务端 |
+| Mod loader | Fabric Loader 0.19.5 or later |
+| Dependency | Fabric API for the matching Minecraft version; this project builds against 0.161.0+26.2 |
+| Java | 25 or later; building from source requires JDK 25 |
+| Installation side | Server |
 
-1. 准备好上述版本的 Fabric 服务端。
-2. 将 Gentle Start 的模组 Jar 与 Fabric API 放入服务器的 `mods/` 目录。不要使用文件名带 `-sources` 的源码包。
-3. 启动服务器，自动生成 `config/gentle-start-mod.json`。
-4. 按需修改配置，执行 `/gentlestart admin reload` 使其生效。
+1. Set up a Fabric server with the versions listed above.
+2. Put the Gentle Start mod Jar and Fabric API in the server's `mods/` directory. Do not install the source archive ending in `-sources`.
+3. Start the server to generate `config/gentle-start-mod.json` automatically.
+4. Edit the configuration as needed, then run `/gentlestart admin reload` to apply it.
 
-尚未提供预编译包时，可以按下方的[构建说明](#构建)生成 Jar。
+If a prebuilt package is not available, follow the [build instructions](#building) below to produce a Jar.
 
-## 配置
+## Configuration
 
-配置文件：`config/gentle-start-mod.json`。首次启动服务端且文件不存在时，会自动生成完整默认配置和中文 `//` 注释。仍使用原文件名，但内容支持注释（JSON with comments），外部严格 JSON 工具需要先去除注释。
+The configuration file is `config/gentle-start-mod.json`. On server startup, if it does not exist, the mod generates the full default configuration with Chinese `//` comments. The filename remains unchanged, but its contents support comments (JSON with comments); strict external JSON tools require the comments to be removed first.
 
-每项功能、数值单位、范围和特殊值均有说明。旧版功能名称（如 `inventory`）和 `playersPerTick` 仍可读取；管理员修改并保存时统一写成新名称和标准注释。重载不会主动改写已有文件；保存不保留手工注释。新旧名称不能同时配置同一功能，以免覆盖含糊。功能内部字段及玩家状态记录保持兼容。
+The generated comments explain each feature, numeric unit, range, and special value. Legacy feature names such as `inventory`, and the old `playersPerTick` option, are still accepted. Saving through administrator commands writes the new names and standard comments. Reloading does not rewrite an existing file; saving does not preserve custom comments. Do not specify both the old and new names for the same feature. Fields within each feature and saved player state remain compatible.
 
-- `enabled`：全局开关。
-- `timeConditionChecksPerTick`：每个服务端 tick 最多轮转检查多少名在线玩家的**累计时间取消条件**，正整数，默认 `1`。在线人数稳定为 P 时，一轮约需 `ceil(P / timeConditionChecksPerTick)` tick；每 tick 不重复检查同一玩家。没有时间条件的功能直接跳过，不周期扫描物品、等级或进度。
-- `defaults`：所有玩家使用的默认规则。
-- `players`：以 UUID 为索引，为指定玩家覆盖默认规则。
+- `enabled`: global switch.
+- `timeConditionChecksPerTick`: maximum number of online players checked per server tick, in round-robin order, for **playtime cancellation conditions**. A positive integer, default `1`. With a stable population of P players, a full pass takes approximately `ceil(P / timeConditionChecksPerTick)` ticks. A player is never checked twice in the same tick. Features without time conditions are skipped; items, levels, and advancements are not periodically scanned.
+- `defaults`: default rules for all players.
+- `players`: per-player overrides indexed by UUID.
 
-省略的字段会继承默认值；列表整体替换。修改文件后需要重载，管理命令则会自动保存并生效。无效配置会报错，重载失败时继续使用当前有效配置。
+Omitted fields inherit their defaults; arrays are replaced as a whole. Manual file changes require a reload. Administrator commands save and apply changes immediately. Invalid configurations produce an error, and a failed reload leaves the current valid configuration active.
 
-### 保护持续多久？
+### How long does protection last?
 
-每项功能的 `minutes` 都表示**累计游玩时间的上限**：
+Each feature's `minutes` field is a **cumulative playtime threshold**:
 
-| 值 | 含义 |
+| Value | Meaning |
 | --- | --- |
-| 正数，例如 `120` | 累计游玩不足 120 分钟时有效，达到上限后结束 |
-| `0` | 关闭该项功能 |
-| 负数，例如 `-1` | 不按游玩时长到期，仍可被取消 |
+| Positive, such as `120` | Active until the player reaches 120 minutes of cumulative playtime |
+| `0` | Disable this feature |
+| Negative, such as `-1` | No playtime expiry; the feature can still be cancelled |
 
-计时包含挂机和安装模组前已有的本服游玩统计，不会因退出或重启重置。时间按服务器 tick 计算，低 TPS 时与现实时间不同。
+Playtime includes AFK time and statistics accumulated on the server before installing the mod. Leaving or restarting does not reset it. Time is measured in server ticks, so it differs from wall-clock time at low TPS.
 
-### 配置示例
+### Configuration example
 
-下面的示例在默认保护基础上，额外开启前两小时的 PvP 保护和 5 秒重生无敌。它不是模组的出厂配置。
+This example adds PvP protection for the first two hours and five seconds of respawn invulnerability to the default protection. It is not the factory default configuration.
 
 ```json
 {
@@ -92,9 +96,9 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 ```
 
 <details>
-<summary>按需启用更多保护</summary>
+<summary>Enable additional protections</summary>
 
-将需要的规则放进 `defaults` 或某位玩家的配置中：
+Place the desired rules under `defaults` or an individual player's configuration:
 
 ```json
 {
@@ -105,17 +109,17 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 }
 ```
 
-- `preventDeath`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。`invulnerabilitySeconds` 设置每次免死后的独立无敌秒数，默认 `5`，支持 `0～86400` 的整数，`0` 不附加无敌。它与 `respawnInvulnerability.durationSeconds` 分别计时，互不授予或重置；取消/重置某项功能仅清除对应的无敌。
-- `protectDeathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
-- `damageReduction`：减免 25% 的传入伤害，在护甲和药水减伤前生效。
-- `mobDetectionRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
+- `preventDeath`: prevent death up to three times during the first 60 minutes, restoring health to 10 points (five hearts) each time. `uses: -1` allows unlimited uses. `invulnerabilitySeconds` controls the independent invulnerability period after each prevented death: default `5`, integer range `0–86400`, with `0` granting no additional invulnerability. Its timer is separate from `respawnInvulnerability.durationSeconds`; neither grants nor resets the other. Cancelling or resetting a feature clears only its own invulnerability.
+- `protectDeathDrops`: `lifetimeSeconds` sets death-drop lifetime, default `600` seconds, integer range `1–86400`. It counts entity ticks and pauses when the chunk stops ticking entities. Lifetime is captured at death; changing the configuration does not alter existing drops, and saving/loading does not refresh their remaining lifetime. Legacy drops retain their existing countdown. Ordinary manually dropped items, mining drops, and experience orbs are unaffected. Other players can still pick up protected drops.
+- `damageReduction`: reduce incoming damage by 25%, before armor and potion damage reduction.
+- `mobDetectionRange`: reduce mob detection range to 50% of its original value. Mobs may still retaliate when attacked.
 
 </details>
 
 <details>
-<summary>只保留指定物品</summary>
+<summary>Keep only selected items</summary>
 
-将下面的规则放进 `defaults.keepInventory`：
+Place the following rule under `defaults.keepInventory`:
 
 ```json
 {
@@ -130,18 +134,18 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 }
 ```
 
-类别、物品 ID、标签和槽位满足任意一项即可保留；`all: true` 则保留全部物品。标签不带 `#`。
+An item is kept if it matches any category, item ID, tag, or slot. `all: true` keeps every item. Tags do not include a leading `#`.
 
-支持的类别：`weapons`、`tools`、`wearable`、`food`、`blocks`、`hotbar`、`main`、`armor`、`offhand`、`body`、`saddle`。其中 `armor` 仅匹配已穿戴的盔甲槽位，`wearable` 也匹配背包内可装备的物品。
+Supported categories: `weapons`, `tools`, `wearable`, `food`, `blocks`, `hotbar`, `main`, `armor`, `offhand`, `body`, and `saddle`. `armor` matches equipped armor slots only; `wearable` also matches equippable items stored in the backpack.
 
-槽位编号：快捷栏 0～8、主背包 9～35、盔甲 36～39、副手 40、身体装备 41、鞍 42。
+Slot numbers: hotbar 0–8, main inventory 9–35, armor 36–39, offhand 40, body equipment 41, and saddle 42.
 
 </details>
 
 <details>
-<summary>在玩家成长后自动结束保护</summary>
+<summary>End protection automatically as players progress</summary>
 
-给任意一项功能添加 `cancel`。下面的规则会在玩家进入下界或达到 30 级时，永久取消这一项保护：
+Add `cancel` to any feature. The following rule permanently cancels that feature when the player enters the Nether or reaches level 30:
 
 ```json
 {
@@ -154,18 +158,18 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 }
 ```
 
-还支持 `items`（物品 ID 列表）、`itemTags`（物品标签列表）和 `playMinutes`（累计分钟数）。`requireAll: true` 表示所有指定条件都要达成，达成历史会保留。
+Other supported conditions are `items` (item IDs), `itemTags` (item tags), and `playMinutes` (cumulative minutes). With `requireAll: true`, every specified condition must be met; previously met conditions are remembered.
 
-保护取消后，丢弃物品、降低等级或撤销进度都不会重新获得保护。管理员可通过 `reset` 重置；若玩家仍满足取消条件，保护会再次取消。
+Once protection is cancelled, dropping items, losing levels, or revoking advancements does not restore it. Administrators can use `reset`; if the player still meets the cancellation conditions, protection is cancelled again.
 
-物品/标签、装备、经验等级、进度的取消条件由各自变化事件触发。日常伤害、效果刷新和状态查询不再扫描这些状态；累计时间条件仍按 `timeConditionChecksPerTick` 分批检查，实际保护判定时也会及时核对时间。登录、重生、配置修改/重载、成功的数据包重载和管理员重置会重新核对当时状态，避免遗漏已持有物品或已完成进度。其他模组若绕过原版方法直接修改内部字段，不保证触发即时检查。
+Item/tag, equipment, experience-level, and advancement conditions are evaluated through their corresponding change events. Ordinary damage handling, effect refreshes, and status queries no longer scan these states. Playtime conditions are still checked in batches according to `timeConditionChecksPerTick`, and time is also checked when protection is needed. Login, respawn, configuration changes/reloads, successful data-pack reloads, and administrator resets recheck the current state, including items already held and advancements already completed. Mods that directly modify internal fields instead of using vanilla methods are not guaranteed to trigger immediate checks.
 
 </details>
 
 <details>
-<summary>为某位玩家单独设置</summary>
+<summary>Configure individual players</summary>
 
-先用 `/gentlestart admin lookup 玩家名` 查询 UUID，再填写到 `players` 中。示例 UUID 需要替换：
+Use `/gentlestart admin lookup PlayerName` to find a player's UUID, then add it under `players`. Replace the example UUID below:
 
 ```json
 {
@@ -178,120 +182,121 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 }
 ```
 
-这位玩家的物品保留不会按时间到期，PvP 保护关闭，其他功能继承服务器默认规则。
+This player's inventory retention has no time limit, PvP protection is disabled, and all other features inherit the server defaults.
 
 </details>
 
-## 命令
+## Commands
 
-### 交互式管理员配置
+### Interactive administrator configuration
 
-管理员在游戏中执行 `/gentlestart admin` 或 `/gentlestart admin ui`，在**聊天栏**显示可点击的管理菜单，无需客户端安装模组：
+Run `/gentlestart admin` or `/gentlestart admin ui` in-game as an administrator to open a clickable menu **in chat**. No client mod is required:
 
-- **全局设置**：点击切换总开关；编辑 `timeConditionChecksPerTick` 时预填命令，修改末尾人数后回车保存。
-- **默认保护规则**：选择功能，直接编辑期限、比例、次数、生命、无敌秒数、掉落物寿命和取消条件数值。
-- **选择玩家**：分页显示在线玩家与已有 UUID 覆盖，也可按名字或 UUID 查找；配置页显示该玩家合并后的当前值。
-- **编辑**：数值和列表的 `[编辑]` 按钮将完整命令及当前值放进聊天输入栏，修改末尾值后回车；布尔规则点击 `[切换]` 立即保存。悬停查看含义和完整值，长列表缩略显示，字段分页展示。
-- 每次只保存选中的字段，其他字段继续继承默认配置。物品筛选、取消条件和药水效果列表也可预填编辑，列表使用 JSON 数组并整体替换。校验失败不写入配置，成功后刷新对应配置页。
-- 玩家页提供查看保护状态、恢复本功能默认配置和重置取消状态的入口。恢复默认、重置状态只预填命令，需回车执行。普通配置调整不会清除已取消状态或已用免死次数。
+- **Global settings:** click to toggle the global switch. Editing `timeConditionChecksPerTick` prefills a command; change the final player count and press Enter to save.
+- **Default protection rules:** choose a feature and edit its duration, ratios, uses, health, invulnerability seconds, drop lifetime, and cancellation thresholds.
+- **Player selection:** browse online players and existing UUID overrides, or search by name or UUID. The configuration page shows the player's current merged values.
+- **Editing:** numeric and list `[编辑]` (Edit) buttons insert the full command and current value into the chat input. Change the final value and press Enter. Boolean `[切换]` (Toggle) buttons save immediately. Hover for descriptions and full values; long lists are abbreviated and fields are paginated.
+- Only the selected field is saved; other fields continue inheriting defaults. Item filters, cancellation conditions, and effect lists can also be edited through prefilled commands. Lists use JSON arrays and are replaced as a whole. Invalid edits are not saved; successful edits refresh the relevant page.
+- Player pages provide protection status, restoration of a feature's defaults, and cancellation-state reset. Restore/reset actions prefill commands and require Enter to execute. Ordinary configuration changes do not clear cancellation history or consumed death-prevention uses.
 
-可直接查看 `/gentlestart admin ui defaults protectDeathDrops` 或 `/gentlestart admin ui player <UUID> protectDeathDrops`，末尾可加页码。控制台保留原有文本管理命令；所有聊天按钮仍通过命令检查管理员权限。
+Open `/gentlestart admin ui defaults protectDeathDrops` or `/gentlestart admin ui player <UUID> protectDeathDrops` directly, optionally followed by a page number. Text administration commands remain available from the console. All chat buttons execute commands that check administrator permissions. In-game messages and menu labels are currently in Chinese.
 
-玩家使用 `/gentlestart status` 查看自己的保护状态，使用 `/gentlestart help` 查看帮助。
+Players can use `/gentlestart status` to view their own protection and `/gentlestart help` for help.
 
-管理员命令需要 OP 2 级权限，也可以从服务器控制台执行。命令支持 Tab 补全。
+Administrator commands require operator permission level 2 and can also be run from the server console. Commands support Tab completion.
 
-| 常用命令 | 用途 |
+| Common command | Purpose |
 | --- | --- |
-| `/gentlestart admin reload` | 重载配置 |
-| `/gentlestart admin defaults set pvpProtection 120` | 为累计游玩不足两小时的玩家开启 PvP 保护 |
-| `/gentlestart admin lookup 玩家名` | 查询玩家 UUID |
-| `/gentlestart admin player <UUID> grant keepInventory 30` | 从在线玩家当前游玩时长起，再授予 30 分钟物品保留 |
-| `/gentlestart admin player <UUID> cancel all` | 取消该玩家的全部保护 |
-| `/gentlestart admin player <UUID> reset all` | 重置取消记录、条件历史、免死次数和无敌窗口 |
+| `/gentlestart admin reload` | Reload the configuration |
+| `/gentlestart admin defaults set pvpProtection 120` | Enable PvP protection for players with less than two hours of cumulative playtime |
+| `/gentlestart admin lookup PlayerName` | Look up a player's UUID |
+| `/gentlestart admin player <UUID> grant keepInventory 30` | Grant an online player another 30 minutes of inventory retention from their current playtime |
+| `/gentlestart admin player <UUID> cancel all` | Cancel all protection for that player |
+| `/gentlestart admin player <UUID> reset all` | Reset cancellation records, condition history, consumed uses, and invulnerability windows |
 
-`set` 设置累计时长上限；`grant` 从当前游玩时长起追加保护并重置对应状态。`reset` 不会延长时长上限。
+`set` specifies a cumulative playtime threshold. `grant` adds protection from the player's current playtime and resets the corresponding state. `reset` does not extend the playtime threshold.
 
 <details>
-<summary>完整管理命令</summary>
+<summary>All administrator commands</summary>
 
-| 命令（均以 `/gentlestart admin` 开头） | 含义 |
+| Command (prefixed with `/gentlestart admin`) | Description |
 | --- | --- |
-| `help` | 列出管理入口；命令与功能名支持 Tab 补全，UUID 提供在线及已配置候选 |
-| `lookup <玩家名或选择器>` | 查询玩家名对应 UUID；离线模式未知名字的解析遵循原版规则，应优先使用已知玩家或准确 UUID |
-| `list [页码]` | 每页列出 20 个有独立配置的 UUID |
-| `enabled <true或false>` | 保存全局启用开关 |
-| `reload` | 重新读取并校验配置，失败时保留正在使用的配置 |
-| `defaults` | 查看默认规则 |
-| `ui` | 显示聊天栏交互管理菜单 |
-| `ui set <defaults或UUID> <功能> <字段路径> <JSON值>` | 只修改一个字段，例如 `protectDeathDrops lifetimeSeconds 600` 或 `keepInventory cancel.experienceLevel 30` |
-| `settings <true或false> <每tick人数>` | 一次保存全局开关和周期检查人数 |
-| `defaults set <功能> <分钟>` | 修改默认累计时间阈值 |
-| `defaults rule <功能> <JSON对象>` | 合并修改默认规则的任意受支持字段 |
-| `player <UUID>` | 查看该玩家各项期限、取消原因和免死次数；离线时不虚构剩余时间 |
-| `player <UUID> show` | 查看该 UUID 的完整生效配置 |
-| `player <UUID> set <功能> <分钟>` | 设置累计游玩阈值，不清除已有取消状态 |
-| `player <UUID> grant <功能> <分钟>` | 在线玩家从当前游玩时间起再授予指定分钟，并重置该项状态；负数长期、0 禁用也支持离线 UUID |
-| `player <UUID> rule <功能> <JSON对象>` | 合并修改该 UUID 的规则 |
-| `player <UUID> clear <功能或all>` | 删除配置覆盖，恢复继承；不重置次数或取消状态 |
-| `player <UUID> cancel <功能或all>` | 持久取消保护 |
-| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；preventDeath 清零已用次数及免死无敌，respawnInvulnerability 仅清除重生无敌 |
-| `player <UUID> revives <已用次数>` | 设置已用免死次数，保留独立无敌窗口 |
-| `copy <源UUID> <目标UUID>` | 复制生效规则，不复制取消历史或已用次数 |
-
+| `help` | List administrator entry points; commands and feature names support Tab completion, and UUID suggestions include online/configured players |
+| `lookup <name-or-selector>` | Look up player UUIDs; unknown names in offline mode follow vanilla resolution rules, so prefer known players or exact UUIDs |
+| `list [page]` | List UUIDs with overrides, 20 per page |
+| `enabled <true-or-false>` | Save the global switch |
+| `reload` | Read and validate the configuration again; retain the active configuration on failure |
+| `defaults` | Show default rules |
+| `ui` | Show the interactive chat menu |
+| `ui set <defaults-or-UUID> <feature> <field-path> <JSON-value>` | Edit one field, such as `protectDeathDrops lifetimeSeconds 600` or `keepInventory cancel.experienceLevel 30` |
+| `settings <true-or-false> <players-per-tick>` | Save the global switch and periodic-check player budget together |
+| `defaults set <feature> <minutes>` | Change a default cumulative playtime threshold |
+| `defaults rule <feature> <JSON-object>` | Merge supported fields into a default rule |
+| `player <UUID>` | Show thresholds, cancellation reasons, and consumed uses; remaining time is not invented for offline players |
+| `player <UUID> show` | Show the UUID's full effective configuration |
+| `player <UUID> set <feature> <minutes>` | Set a cumulative playtime threshold without clearing existing cancellation state |
+| `player <UUID> grant <feature> <minutes>` | Grant an online player the specified additional minutes and reset that feature's state; negative values for permanent protection and zero for disabling also work for offline UUIDs |
+| `player <UUID> rule <feature> <JSON-object>` | Merge changes into the UUID's rule |
+| `player <UUID> clear <feature-or-all>` | Remove overrides and restore inheritance without resetting uses or cancellation state |
+| `player <UUID> cancel <feature-or-all>` | Persistently cancel protection |
+| `player <UUID> reset <feature-or-all>` | Reset cancellation state and condition history; `preventDeath` also clears consumed uses and its invulnerability, while `respawnInvulnerability` clears only respawn invulnerability |
+| `player <UUID> revives <used>` | Set consumed death-prevention uses without changing independent invulnerability windows |
+| `copy <source-UUID> <target-UUID>` | Copy effective rules without copying cancellation history or consumed uses |
 
 </details>
 
-## 常见问题
+## FAQ
 
-**客户端需要安装吗？**
+**Do clients need the mod?**
 
-不需要。Gentle Start 仅安装在 Fabric 服务端，原版客户端即可加入。它不是 Paper 或 Spigot 插件。
+No. Install Gentle Start only on the Fabric server; vanilla clients can join. It is not a Paper or Spigot plugin.
 
-**老玩家会重新获得两小时保护吗？**
+**Do existing players receive another two hours of protection?**
 
-不会。模组读取玩家已有的本服累计游玩时间。需要额外授予保护时，使用 `grant` 命令。
+No. The mod reads their existing cumulative playtime on this server. Use `grant` to give additional protection.
 
-**退出、重连或重启会刷新次数吗？**
+**Does leaving, reconnecting, or restarting reset uses?**
 
-不会。取消记录、免死次数和无敌截止点会保存到世界的 `data/gentle-start-mod-state.json`。请使用管理命令调整，不要在服务器运行时手工编辑这个文件。
+No. Cancellation records, consumed uses, and invulnerability deadlines are saved in the world's `data/gentle-start-mod-state.json`. Use administrator commands to change them; do not edit this file while the server is running.
 
-**免死可以防止掉进虚空吗？**
+**Can death prevention save players from the void?**
 
-不可以。虚空和 `/kill` 等绕过无敌的特殊伤害仍然有效，模组不提供虚空传送救援。原版不死图腾优先于模组免死次数触发。免死在伤害、护甲及吸收生命等结算后确认致死，并在进入死亡流程前恢复生命，因此不会关闭当前容器、生成死亡快照或替换玩家。装备耐久等伤害结算副作用仍按原版执行。直接绕过伤害流程调用死亡方法的其他模组不保证被拦截；真正死亡会清除先前的免死无敌。
+No. The void, `/kill`, and other damage that bypasses invulnerability remain effective. The mod does not teleport players out of the void. Vanilla totems take priority over mod death-prevention uses. The mod checks lethality after damage, armor, and absorption are resolved, then restores health before entering the death process. It therefore does not close the current container, capture a death snapshot, or replace the player. Damage-related side effects such as equipment durability loss still follow vanilla behavior. Other mods that directly call death methods instead of going through damage handling are not guaranteed to be intercepted. An actual death clears previous death-prevention invulnerability.
 
-**开启 PvP 保护后还能攻击别人吗？**
+**Can protected players still attack others?**
 
-`removeOnAttack: true` 时，主动攻击其他玩家会永久解除自己的 PvP 保护；设为 `false` 时，受保护玩家也无法伤害别人。无法直接归属玩家的岩浆、点火和机关伤害不保证被识别为 PvP。
+With `removeOnAttack: true`, attacking another player permanently ends the attacker's PvP protection. With `false`, protected players cannot damage others either. Lava, fire, and traps that cannot be attributed directly to a player are not guaranteed to count as PvP.
 
-**保护结束后，药水效果会立即消失吗？**
+**Do effects disappear immediately when protection ends?**
 
-不会，模组停止刷新效果，已授予的效果自然到期。不会主动移除其他药水或信标提供的同类效果。
+No. The mod stops refreshing them and lets existing effects expire naturally. It does not actively remove equivalent effects from potions or beacons.
 
-**能和其他模组一起用吗？**
+**Does it work with other mods?**
 
-原版全局 `keep_inventory` 仍然生效。使用自定义 AI、死亡或伤害流程的模组需要在实际组合中测试，不能保证所有组合都兼容。
+The vanilla global `keep_inventory` rule remains effective. Mods with custom AI, death, or damage handling need testing in the intended combination; compatibility with every combination is not guaranteed.
 
-## 构建
+## Building
 
-使用 JDK 25，在项目根目录执行：
+With JDK 25 installed, run from the project root:
 
 ```powershell
 .\gradlew.bat build
 ```
 
-Linux / macOS：
+On Linux / macOS:
 
 ```sh
 ./gradlew build
 ```
 
-产物位于 `build/libs/`，安装不带 `-sources` 后缀的 Jar。`build` 会一并运行服务端 GameTest；单独运行测试可使用 `runGameTest` 任务。
+Outputs are written to `build/libs/`. Install the Jar without the `-sources` suffix. `build` also runs the server GameTests; use the `runGameTest` task to run them separately.
 
-## 反馈
+GitHub Actions runs the build, server GameTests, and a redacted BetterLeaks scan on pushes to `main` and pull requests. The workflow can also be started manually. Successful runs provide the mod Jar as an artifact; build and GameTest logs are retained for diagnosis. See [CI runs](https://github.com/XiaoQing235/gentle-start-mod/actions/workflows/ci.yml).
 
-遇到问题或有功能建议，请提交 [Issue](https://github.com/XiaoQing235/gentle-start-mod/issues)，附上 Minecraft、Fabric Loader、Fabric API 和模组版本，以及复现步骤。提交日志或配置前请移除个人信息。
+## Feedback
 
-## 许可证
+For bugs or feature requests, open an [Issue](https://github.com/XiaoQing235/gentle-start-mod/issues) with your Minecraft, Fabric Loader, Fabric API, and mod versions, along with reproduction steps. Remove personal information before sharing logs or configuration files.
+
+## License
 
 [MIT License](LICENSE) · Copyright (c) 2026 XiaoQing235
