@@ -17,8 +17,23 @@ public enum Feature {
         return id;
     }
 
+    public String configName() {
+        return switch (this) {
+            case INVENTORY -> "keepInventory";
+            case EXPERIENCE -> "keepExperience";
+            case SCORE -> "keepScore";
+            case REVIVE -> "preventDeath";
+            case EFFECTS -> "protectionEffects";
+            case PVP -> "pvpProtection";
+            case DAMAGE_REDUCTION -> "damageReduction";
+            case MOB_RANGE -> "mobDetectionRange";
+            case RESPAWN_PROTECTION -> "respawnInvulnerability";
+            case DEATH_DROPS -> "protectDeathDrops";
+        };
+    }
+
     public static Feature parse(String id) {
-        return Arrays.stream(values()).filter(feature -> feature.id.equals(id)).findFirst()
+        return Arrays.stream(values()).filter(feature -> (feature.id.equals(id) || feature.configName().equals(id))).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown protection: " + id));
     }
 }

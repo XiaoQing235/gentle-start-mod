@@ -75,7 +75,7 @@ public final class ProtectionConfig {
     }
 
     public static ProtectionConfig parse(JsonObject input) {
-        JsonObject root = input.deepCopy();
+        JsonObject root = ConfigFormat.read(input);
         checkFields(root, Set.of("enabled", "playersPerTick", "defaults", "players"), "root");
         boolean enabled = !root.has("enabled") || Codec.BOOL.parse(JsonOps.INSTANCE, root.get("enabled")).getOrThrow();
         int playersPerTick = 1;
@@ -122,7 +122,7 @@ public final class ProtectionConfig {
     }
 
     public void save(Path file) {
-        JsonFiles.write(file, document);
+        JsonFiles.write(file, ConfigFormat.write(document));
     }
 
     public static JsonObject encode(ProtectionRules.Profile profile) {

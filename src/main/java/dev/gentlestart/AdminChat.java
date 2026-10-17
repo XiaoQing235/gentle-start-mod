@@ -42,7 +42,7 @@ final class AdminChat {
         for (Feature feature : Feature.values()) {
             double minutes = profile.window(feature).minutes();
             String state = minutes == 0 ? "关闭" : minutes < 0 ? "长期" : minutes + " 分钟";
-            lines.add(button(featureName(feature), scope(target) + " " + feature.id(), false, "查看并编辑 " + feature.id())
+            lines.add(button(featureName(feature), scope(target) + " " + feature.configName(), false, "查看并编辑 " + feature.configName())
                     .append(Component.literal(" " + state).withStyle(ChatFormatting.GRAY)));
         }
         if (target != null) {
@@ -60,7 +60,7 @@ final class AdminChat {
         lines.add(title((target == null ? "默认 · " : "玩家 · ") + featureName(feature) + " " + current + "/" + pages));
         lines.add(Component.literal("点击编辑预填命令，修改末尾值后回车；每次只保存这一项。悬停查看说明。")
                 .withStyle(ChatFormatting.GRAY));
-        String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.id() + " ";
+        String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.configName() + " ";
         fields.entrySet().stream().skip((current - 1L) * PAGE_SIZE).limit(PAGE_SIZE).forEach(entry -> {
             String field = entry.getKey();
             JsonElement value = entry.getValue();
@@ -72,16 +72,16 @@ final class AdminChat {
                     .append(button(bool ? "切换" : "编辑", prefix + field + " " + (bool ? !value.getAsBoolean() : raw),
                             !bool, fieldName(field) + (bool ? "；点击立即切换" : "；修改末尾值后回车保存，列表使用 JSON 数组"))));
         });
-        String scope = scope(target) + " " + feature.id();
+        String scope = scope(target) + " " + feature.configName();
         MutableComponent navigation = Component.empty();
         if (current > 1) navigation.append(button("上一页", scope + " " + (current - 1), false, "上一页"));
         if (current < pages) navigation.append(button("下一页", scope + " " + (current + 1), false, "下一页"));
         navigation.append(button("返回功能", scope(target), false, "选择其他保护功能"));
         lines.add(navigation);
         if (target != null) {
-            lines.add(button("恢复本功能默认配置", "player " + target + " clear " + feature.id(), true,
+            lines.add(button("恢复本功能默认配置", "player " + target + " clear " + feature.configName(), true,
                     "预填命令，回车后删除本功能的玩家覆盖，不重置持久状态")
-                    .append(button("重置取消状态", "player " + target + " reset " + feature.id(), true,
+                    .append(button("重置取消状态", "player " + target + " reset " + feature.configName(), true,
                             "预填命令，回车后重置本功能状态；免死功能会清零已用次数")));
         }
         return lines;

@@ -125,7 +125,7 @@ public final class ProtectionCommands {
         var player = uuidArgument("uuid").executes(guard(context -> status(context, uuid(context))));
         player.then(Commands.literal("show").executes(guard(context -> {
             reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(
-                    ProtectionConfig.encode(engine().config().profile(uuid(context)))), false);
+                    ConfigFormat.externalProfile(ProtectionConfig.encode(engine().config().profile(uuid(context))))), false);
             return 1;
         })));
         player.then(Commands.literal("set").then(feature(false).then(Commands.argument("minutes", DoubleArgumentType.doubleArg())
@@ -169,7 +169,7 @@ public final class ProtectionCommands {
         admin.then(Commands.literal("player").then(player));
 
         var defaults = Commands.literal("defaults").executes(context -> {
-            reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(engine().config().document().get("defaults")), false);
+            reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(ConfigFormat.externalDocument(engine().config().document()).get("defaults")), false);
             return 1;
         });
         defaults.then(Commands.literal("set").then(feature(false).then(Commands.argument("minutes", DoubleArgumentType.doubleArg())
@@ -231,7 +231,7 @@ public final class ProtectionCommands {
 
     private static RequiredArgumentBuilder<CommandSourceStack, String> feature(boolean all) {
         return Commands.argument("feature", StringArgumentType.word()).suggests((context, builder) -> {
-            var names = new java.util.ArrayList<>(Arrays.stream(Feature.values()).map(Feature::id).toList());
+            var names = new java.util.ArrayList<>(Arrays.stream(Feature.values()).map(Feature::configName).toList());
             if (all) {
                 names.add("all");
             }

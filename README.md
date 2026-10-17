@@ -16,16 +16,16 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 | 功能 | 能做什么 | 配置名称 |
 | --- | --- | --- |
-| 物品保留 | 死亡后保留全部物品，或按类别、物品、标签、槽位筛选 | `inventory` |
-| 经验保留 | 保留全部或指定比例的可用经验 | `experience` |
-| 分数保留 | 保留死亡界面中的原版分数 | `score` |
-| 原地免死 | 抵挡致命伤害，恢复指定生命值，可限制次数并附加效果 | `revive` |
-| 重生无敌 | 正常死亡重生或原地免死后，短暂免疫普通伤害 | `respawnProtection` |
-| 掉落保护 | 延长死亡掉落的存在时间，防火、抵抗普通伤害并禁止合并 | `deathDrops` |
-| 状态效果 | 在保护期间持续提供可配置的药水效果 | `effects` |
-| PvP 保护 | 阻止玩家伤害，可在主动攻击后解除保护 | `pvp` |
+| 物品保留 | 死亡后保留全部物品，或按类别、物品、标签、槽位筛选 | `keepInventory` |
+| 经验保留 | 保留全部或指定比例的可用经验 | `keepExperience` |
+| 分数保留 | 保留死亡界面中的原版分数 | `keepScore` |
+| 原地免死 | 抵挡致命伤害，恢复指定生命值，可限制次数并附加效果 | `preventDeath` |
+| 重生无敌 | 正常死亡重生或原地免死后，短暂免疫普通伤害 | `respawnInvulnerability` |
+| 掉落保护 | 延长死亡掉落的存在时间，防火、抵抗普通伤害并禁止合并 | `protectDeathDrops` |
+| 状态效果 | 在保护期间持续提供可配置的药水效果 | `protectionEffects` |
+| PvP 保护 | 阻止玩家伤害，可在主动攻击后解除保护 | `pvpProtection` |
 | 伤害减免 | 按比例降低受到的普通伤害 | `damageReduction` |
-| 怪物感知范围 | 缩小怪物发现和持续追踪玩家的范围 | `mobRange` |
+| 怪物感知范围 | 缩小怪物发现和持续追踪玩家的范围 | `mobDetectionRange` |
 
 每项功能的期限和结束条件都可以独立设置。保护状态、免死次数与取消记录会随世界保存。
 
@@ -48,10 +48,12 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 ## 配置
 
-配置文件：`config/gentle-start-mod.json`。
+配置文件：`config/gentle-start-mod.json`。首次启动服务端且文件不存在时，会自动生成完整默认配置和中文 `//` 注释。仍使用原文件名，但内容支持注释（JSON with comments），外部严格 JSON 工具需要先去除注释。
+
+每项功能、数值单位、范围和特殊值均有说明。旧版功能名称（如 `inventory`）和 `playersPerTick` 仍可读取；管理员修改并保存时统一写成新名称和标准注释。重载不会主动改写已有文件；保存不保留手工注释。新旧名称不能同时配置同一功能，以免覆盖含糊。功能内部字段及玩家状态记录保持兼容。
 
 - `enabled`：全局开关。
-- `playersPerTick`：每个服务端 tick 最多轮转检查多少名在线玩家的**累计时间取消条件**，正整数，默认 `1`。在线人数稳定为 P 时，一轮约需 `ceil(P / playersPerTick)` tick；每 tick 不重复检查同一玩家。没有时间条件的功能直接跳过，不周期扫描物品、等级或进度。
+- `timeConditionChecksPerTick`：每个服务端 tick 最多轮转检查多少名在线玩家的**累计时间取消条件**，正整数，默认 `1`。在线人数稳定为 P 时，一轮约需 `ceil(P / timeConditionChecksPerTick)` tick；每 tick 不重复检查同一玩家。没有时间条件的功能直接跳过，不周期扫描物品、等级或进度。
 - `defaults`：所有玩家使用的默认规则。
 - `players`：以 UUID 为索引，为指定玩家覆盖默认规则。
 
@@ -76,14 +78,14 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 ```json
 {
   "enabled": true,
-  "playersPerTick": 1,
+  "timeConditionChecksPerTick": 1,
   "defaults": {
-    "inventory": { "minutes": 120 },
-    "experience": { "minutes": 120, "ratio": 1.0 },
-    "score": { "minutes": 120 },
-    "effects": { "minutes": 120 },
-    "pvp": { "minutes": 120, "removeOnAttack": true },
-    "respawnProtection": { "minutes": 120, "durationSeconds": 5 }
+    "keepInventory": { "minutes": 120 },
+    "keepExperience": { "minutes": 120, "ratio": 1.0 },
+    "keepScore": { "minutes": 120 },
+    "protectionEffects": { "minutes": 120 },
+    "pvpProtection": { "minutes": 120, "removeOnAttack": true },
+    "respawnInvulnerability": { "minutes": 120, "durationSeconds": 5 }
   },
   "players": {}
 }
@@ -96,24 +98,24 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 ```json
 {
-  "revive": { "minutes": 60, "uses": 3, "health": 10 },
-  "deathDrops": { "minutes": 120, "lifetimeSeconds": 600 },
+  "preventDeath": { "minutes": 60, "uses": 3, "health": 10 },
+  "protectDeathDrops": { "minutes": 120, "lifetimeSeconds": 600 },
   "damageReduction": { "minutes": 60, "reduction": 0.25 },
-  "mobRange": { "minutes": 60, "multiplier": 0.5 }
+  "mobDetectionRange": { "minutes": 60, "multiplier": 0.5 }
 }
 ```
 
-- `revive`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。免死本身不附带无敌，需要另外开启 `respawnProtection`。
-- `deathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
+- `preventDeath`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。免死本身不附带无敌，需要另外开启 `respawnInvulnerability`。
+- `protectDeathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
 - `damageReduction`：减免 25% 的传入伤害，在护甲和药水减伤前生效。
-- `mobRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
+- `mobDetectionRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
 
 </details>
 
 <details>
 <summary>只保留指定物品</summary>
 
-将下面的规则放进 `defaults.inventory`：
+将下面的规则放进 `defaults.keepInventory`：
 
 ```json
 {
@@ -156,7 +158,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 保护取消后，丢弃物品、降低等级或撤销进度都不会重新获得保护。管理员可通过 `reset` 重置；若玩家仍满足取消条件，保护会再次取消。
 
-物品/标签、装备、经验等级、进度的取消条件由各自变化事件触发。日常伤害、效果刷新和状态查询不再扫描这些状态；累计时间条件仍按 `playersPerTick` 分批检查，实际保护判定时也会及时核对时间。登录、重生、配置修改/重载、成功的数据包重载和管理员重置会重新核对当时状态，避免遗漏已持有物品或已完成进度。其他模组若绕过原版方法直接修改内部字段，不保证触发即时检查。
+物品/标签、装备、经验等级、进度的取消条件由各自变化事件触发。日常伤害、效果刷新和状态查询不再扫描这些状态；累计时间条件仍按 `timeConditionChecksPerTick` 分批检查，实际保护判定时也会及时核对时间。登录、重生、配置修改/重载、成功的数据包重载和管理员重置会重新核对当时状态，避免遗漏已持有物品或已完成进度。其他模组若绕过原版方法直接修改内部字段，不保证触发即时检查。
 
 </details>
 
@@ -169,8 +171,8 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 {
   "players": {
     "00000000-0000-0000-0000-000000000001": {
-      "inventory": { "minutes": -1 },
-      "pvp": { "minutes": 0 }
+      "keepInventory": { "minutes": -1 },
+      "pvpProtection": { "minutes": 0 }
     }
   }
 }
@@ -186,14 +188,14 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 管理员在游戏中执行 `/gentlestart admin` 或 `/gentlestart admin ui`，在**聊天栏**显示可点击的管理菜单，无需客户端安装模组：
 
-- **全局设置**：点击切换总开关；编辑 `playersPerTick` 时预填命令，修改末尾人数后回车保存。
+- **全局设置**：点击切换总开关；编辑 `timeConditionChecksPerTick` 时预填命令，修改末尾人数后回车保存。
 - **默认保护规则**：选择功能，直接编辑期限、比例、次数、生命、无敌秒数、掉落物寿命和取消条件数值。
 - **选择玩家**：分页显示在线玩家与已有 UUID 覆盖，也可按名字或 UUID 查找；配置页显示该玩家合并后的当前值。
 - **编辑**：数值和列表的 `[编辑]` 按钮将完整命令及当前值放进聊天输入栏，修改末尾值后回车；布尔规则点击 `[切换]` 立即保存。悬停查看含义和完整值，长列表缩略显示，字段分页展示。
 - 每次只保存选中的字段，其他字段继续继承默认配置。物品筛选、取消条件和药水效果列表也可预填编辑，列表使用 JSON 数组并整体替换。校验失败不写入配置，成功后刷新对应配置页。
 - 玩家页提供查看保护状态、恢复本功能默认配置和重置取消状态的入口。恢复默认、重置状态只预填命令，需回车执行。普通配置调整不会清除已取消状态或已用免死次数。
 
-可直接查看 `/gentlestart admin ui defaults deathDrops` 或 `/gentlestart admin ui player <UUID> deathDrops`，末尾可加页码。控制台保留原有文本管理命令；所有聊天按钮仍通过命令检查管理员权限。
+可直接查看 `/gentlestart admin ui defaults protectDeathDrops` 或 `/gentlestart admin ui player <UUID> protectDeathDrops`，末尾可加页码。控制台保留原有文本管理命令；所有聊天按钮仍通过命令检查管理员权限。
 
 玩家使用 `/gentlestart status` 查看自己的保护状态，使用 `/gentlestart help` 查看帮助。
 
@@ -202,9 +204,9 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | 常用命令 | 用途 |
 | --- | --- |
 | `/gentlestart admin reload` | 重载配置 |
-| `/gentlestart admin defaults set pvp 120` | 为累计游玩不足两小时的玩家开启 PvP 保护 |
+| `/gentlestart admin defaults set pvpProtection 120` | 为累计游玩不足两小时的玩家开启 PvP 保护 |
 | `/gentlestart admin lookup 玩家名` | 查询玩家 UUID |
-| `/gentlestart admin player <UUID> grant inventory 30` | 从在线玩家当前游玩时长起，再授予 30 分钟物品保留 |
+| `/gentlestart admin player <UUID> grant keepInventory 30` | 从在线玩家当前游玩时长起，再授予 30 分钟物品保留 |
 | `/gentlestart admin player <UUID> cancel all` | 取消该玩家的全部保护 |
 | `/gentlestart admin player <UUID> reset all` | 重置取消记录、条件历史、免死次数和无敌窗口 |
 
@@ -222,7 +224,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | `reload` | 重新读取并校验配置，失败时保留正在使用的配置 |
 | `defaults` | 查看默认规则 |
 | `ui` | 显示聊天栏交互管理菜单 |
-| `ui set <defaults或UUID> <功能> <字段路径> <JSON值>` | 只修改一个字段，例如 `deathDrops lifetimeSeconds 600` 或 `inventory cancel.experienceLevel 30` |
+| `ui set <defaults或UUID> <功能> <字段路径> <JSON值>` | 只修改一个字段，例如 `protectDeathDrops lifetimeSeconds 600` 或 `keepInventory cancel.experienceLevel 30` |
 | `settings <true或false> <每tick人数>` | 一次保存全局开关和周期检查人数 |
 | `defaults set <功能> <分钟>` | 修改默认累计时间阈值 |
 | `defaults rule <功能> <JSON对象>` | 合并修改默认规则的任意受支持字段 |
@@ -233,7 +235,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | `player <UUID> rule <功能> <JSON对象>` | 合并修改该 UUID 的规则 |
 | `player <UUID> clear <功能或all>` | 删除配置覆盖，恢复继承；不重置次数或取消状态 |
 | `player <UUID> cancel <功能或all>` | 持久取消保护 |
-| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；revive 清零已用次数，respawnProtection 清除无敌窗口 |
+| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；preventDeath 清零已用次数，respawnInvulnerability 清除无敌窗口 |
 | `player <UUID> revives <已用次数>` | 设置已用免死次数，保留独立无敌窗口 |
 | `copy <源UUID> <目标UUID>` | 复制生效规则，不复制取消历史或已用次数 |
 

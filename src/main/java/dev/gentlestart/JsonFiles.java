@@ -15,12 +15,16 @@ final class JsonFiles {
     }
 
     static void write(Path file, JsonElement json) {
+        write(file, GSON.toJson(json) + "\n");
+    }
+
+    static void write(Path file, String contents) {
         Path temporary = null;
         try {
             Path target = file.toAbsolutePath();
             Files.createDirectories(target.getParent());
             temporary = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
-            Files.writeString(temporary, GSON.toJson(json) + "\n");
+            Files.writeString(temporary, contents);
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
             throw new IllegalStateException("Cannot save " + file.getFileName(), exception);

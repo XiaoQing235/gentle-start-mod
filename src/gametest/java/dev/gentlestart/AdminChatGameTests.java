@@ -31,7 +31,7 @@ public class AdminChatGameTests {
                 for (String field : fields.keySet()) {
                     List<Component> lines = AdminChat.rule(engine.config(), target, feature,
                             AdminChat.fieldPage(engine.config(), target, feature, field));
-                    String prefix = "/gentlestart admin ui set " + target + " " + feature.id() + " " + field + " ";
+                    String prefix = "/gentlestart admin ui set " + target + " " + feature.configName() + " " + field + " ";
                     test.assertTrue(clicks(lines).stream().anyMatch(event -> command(event).startsWith(prefix)),
                             "Every field has an edit/toggle action, including list fields: " + field);
                 }

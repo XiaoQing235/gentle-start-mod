@@ -256,6 +256,31 @@ public class ProtectionGameTests {
             test.assertTrue(json.contains("minutes") && json.contains("minecraft:night_vision")
                     && json.contains("showParticles"), "Generated config includes editable defaults");
             test.assertValueEqual(ProtectionConfig.load(file).document(), ProtectionConfig.defaults().document(), "Generated config round trip");
+            test.assertTrue(json.contains("//") && json.contains("keepInventory")
+                    && json.contains("timeConditionChecksPerTick") && !json.contains("\"inventory\""),
+                    "Generated file has comments and descriptive names");
+            Files.writeString(file, "// custom comment\n{\"timeConditionChecksPerTick\":3,\"defaults\":{\"keepInventory\":{\"minutes\":45}},"
+                    + "\"players\":{\"00000000-0000-0000-0000-000000000001\":{\"protectDeathDrops\":{\"lifetimeSeconds\":900}}}}");
+            ProtectionConfig named = ProtectionConfig.load(file);
+            test.assertValueEqual(named.playersPerTick(), 3, "Descriptive tick budget is read");
+            test.assertValueEqual(named.defaultProfile().inventory().window().minutes(), 45.0, "Descriptive feature is read");
+            test.assertValueEqual(named.profile(UUID.fromString("00000000-0000-0000-0000-000000000001")).deathDrops().lifetimeSeconds(),
+                    900, "Descriptive player override is read");
+            named.save(file);
+            test.assertValueEqual(ProtectionConfig.load(file).document(), named.document(), "Commented save preserves overrides");
+            Files.writeString(file, "{\"defaults\":{\"inventory\":{\"minutes\":23}}}");
+            ProtectionConfig legacy = ProtectionConfig.load(file);
+            test.assertValueEqual(legacy.defaultProfile().inventory().window().minutes(), 23.0, "Legacy names remain readable");
+            legacy.save(file);
+            test.assertTrue(Files.readString(file).contains("keepInventory"), "Saving upgrades legacy names");
+            Files.writeString(file, "{\"defaults\":{\"inventory\":{},\"keepInventory\":{}}}");
+            boolean ambiguousRejected = false;
+            try {
+                ProtectionConfig.load(file);
+            } catch (IllegalStateException expected) {
+                ambiguousRejected = true;
+            }
+            test.assertTrue(ambiguousRejected, "Duplicate old and new names are rejected");
             Files.writeString(file, "{invalid");
             boolean rejected = false;
             try {
