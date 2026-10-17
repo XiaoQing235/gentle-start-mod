@@ -6,6 +6,8 @@ public interface DeathProtection {
 
     boolean gentleStart$protectDrops();
 
+    int gentleStart$dropLifetimeSeconds();
+
     default boolean gentleStart$keepInventory() {
         return !gentleStart$death().slots().isEmpty();
     }

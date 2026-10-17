@@ -22,7 +22,7 @@ abstract class LivingEntityMixin {
                                                     CallbackInfoReturnable<ItemEntity> callback) {
         if ((Object) this instanceof DeathProtection death && death.gentleStart$protectDrops()
                 && callback.getReturnValue() != null) {
-            ((DeathDropProtection) callback.getReturnValue()).gentleStart$protect();
+            ((DeathDropProtection) callback.getReturnValue()).gentleStart$protect(death.gentleStart$dropLifetimeSeconds());
         }
     }
 

@@ -49,6 +49,59 @@ public class ExpandedProtectionGameTests {
     }
 
     @GameTest
+    public void periodicChecksRotateWithinPlayerBudget(GameTestHelper test) {
+        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"playMinutes\":1}}}"), () -> {
+            var players = List.of(player(test, 1200), player(test, 1200), player(test, 1200));
+            engine().checkNextPlayers(List.of());
+            engine().checkNextPlayers(players);
+            test.assertTrue(engine().states().get(players.get(0).getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "First tick checks the first player");
+            test.assertTrue(engine().states().get(players.get(1).getUUID()).cancellation(Feature.INVENTORY) == null,
+                    "Default budget does not scan the second player on the same tick");
+            JsonObject document = engine().config().document();
+            document.addProperty("playersPerTick", 2);
+            engine().replaceConfig(ProtectionConfig.parse(document));
+            engine().checkNextPlayers(players);
+            for (ServerPlayer player : players) {
+                test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                        "Runtime budget change continues the rotation");
+                engine().states().reset(player.getUUID(), Feature.INVENTORY);
+            }
+            engine().checkNextPlayers(List.of(players.get(2)));
+            test.assertTrue(engine().states().get(players.get(2).getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "Shrinking the player list wraps safely and checks remaining players");
+            engine().checkNextPlayers(List.of());
+            engine().checkNextPlayers(players);
+            test.assertTrue(engine().states().get(players.get(0).getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "After an empty server the rotation restarts");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void newNumericOptionsValidateAndInherit(GameTestHelper test) {
+        test.assertValueEqual(ProtectionConfig.defaults().playersPerTick(), 1, "Default periodic budget is one player");
+        test.assertValueEqual(ProtectionConfig.defaults().defaultProfile().deathDrops().lifetimeSeconds(), 600, "Default drop lifetime is 600 seconds");
+        UUID id = UUID.randomUUID();
+        ProtectionConfig config = settings("{\"deathDrops\":{\"minutes\":120,\"lifetimeSeconds\":42}}");
+        config = config.withPlayer(id, json("{\"deathDrops\":{\"minutes\":-1}}"));
+        test.assertValueEqual(config.profile(id).deathDrops().lifetimeSeconds(), 42, "Partial player override inherits lifetime");
+        for (String invalid : List.of("{\"playersPerTick\":0}", "{\"playersPerTick\":1.5}",
+                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":0}}}",
+                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":1.5}}}",
+                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":86401}}}")) {
+            boolean rejected = false;
+            try {
+                ProtectionConfig.parse(json(invalid));
+            } catch (IllegalArgumentException | IllegalStateException expected) {
+                rejected = true;
+            }
+            test.assertTrue(rejected, "Invalid numeric options are rejected: " + invalid);
+        }
+        test.succeed();
+    }
+
+    @GameTest
     public void uuidRulesInheritAndEachFeatureHasItsOwnClock(GameTestHelper test) {
         withConfig(test, settings("{\"inventory\":{\"minutes\":1},\"experience\":{\"minutes\":2},\"score\":{\"minutes\":-3}}"), () -> {
             ServerPlayer first = player(test, 1200);

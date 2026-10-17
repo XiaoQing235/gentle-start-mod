@@ -34,10 +34,12 @@ public class DeathDropGameTests {
     }
 
     private static ItemEntity deathDrop(GameTestHelper test) {
+        List<ItemEntity> existing = drops(test);
         ServerPlayer player = player(test, 0);
         player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
         player.kill(test.getLevel());
-        return drops(test).stream().filter(DeathDropGameTests::protectedDrop).findFirst().orElseThrow();
+        return drops(test).stream().filter(item -> !existing.contains(item))
+                .filter(DeathDropGameTests::protectedDrop).findFirst().orElseThrow();
     }
 
     @GameTest
@@ -55,7 +57,7 @@ public class DeathDropGameTests {
             List<ItemEntity> protectedItems = drops(test).stream().filter(DeathDropGameTests::protectedDrop).toList();
             test.assertValueEqual(protectedItems.size(), 2, "Only unretained stacks become protected entities");
             for (ItemEntity item : protectedItems) {
-                test.assertValueEqual(item.getAge(), -6000, "Death drop uses vanilla setExtendedLifetime");
+                test.assertValueEqual(item.getAge(), 0, "Configured lifetime starts with zero elapsed ticks");
                 test.assertTrue(item.fireImmune(), "Protected death drop is fire immune");
             }
             ServerPlayer next = respawn(player);
@@ -72,6 +74,9 @@ public class DeathDropGameTests {
             TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
             item.saveWithoutId(output);
             var tag = output.buildResult();
+            // Simulate a drop saved by the previous version, without configurable lifetime fields.
+            tag.remove("gentle-start-mod:lifetime_ticks");
+            tag.remove("gentle-start-mod:age");
             tag.putShort("Age", (short)-1234);
             ItemEntity restored = new ItemEntity(test.getLevel(), item.getX(), item.getY(), item.getZ(), new ItemStack(Items.DIAMOND));
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
@@ -89,6 +94,37 @@ public class DeathDropGameTests {
             test.assertFalse(restored.isRemoved(), "Drop survives the tick before its extended deadline");
             restored.tick();
             test.assertTrue(restored.isRemoved(), "Protected item still despawns at the finite extended deadline");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void configuredLifetimePersistsAndExpiresAtExactDeadline(GameTestHelper test) {
+        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":3600}}"), () -> {
+            ItemEntity item = deathDrop(test);
+            TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+            item.saveWithoutId(output);
+            var tag = output.buildResult();
+            test.assertValueEqual(tag.getIntOr("gentle-start-mod:lifetime_ticks", 0), 72000, "Configured seconds become entity ticks");
+            tag.putInt("gentle-start-mod:age", 71998);
+            ItemEntity restored = new ItemEntity(test.getLevel(), item.getX(), item.getY(), item.getZ(), new ItemStack(Items.DIAMOND));
+            restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+            engine().replaceConfig(settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":1}}"));
+            TagValueOutput resaved = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+            restored.saveWithoutId(resaved);
+            restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), resaved.buildResult()));
+            test.assertValueEqual(restored.getAge(), 71998, "Elapsed age survives beyond the vanilla short range");
+            restored.tick();
+            test.assertFalse(restored.isRemoved(), "Existing drop retains its original configured deadline after reload");
+            restored.tick();
+            test.assertTrue(restored.isRemoved(), "Drop expires exactly at the configured deadline");
+            ItemEntity shortLived = deathDrop(test);
+            for (int tick = 0; tick < 19; tick++) {
+                shortLived.tick();
+            }
+            test.assertFalse(shortLived.isRemoved(), "New drop respects the shorter lifetime");
+            shortLived.tick();
+            test.assertTrue(shortLived.isRemoved(), "One second is twenty entity ticks");
         });
         test.succeed();
     }
@@ -178,7 +214,7 @@ public class DeathDropGameTests {
 
     @GameTest
     public void laterDeathContainerCleanupKeepsOriginalDropDecision(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":42}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.inventoryMenu.setCarried(new ItemStack(Items.DIAMOND, 7));
             player.kill(test.getLevel());
@@ -189,10 +225,15 @@ public class DeathDropGameTests {
             reloaded.connection = player.connection;
             reloaded.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), output.buildResult()));
             test.assertTrue(((DeathProtection) reloaded).gentleStart$protectDrops(), "Pending death drop decision survives player save/load");
+            test.assertValueEqual(((DeathProtection) reloaded).gentleStart$dropLifetimeSeconds(), 42, "Pending death retains its configured lifetime");
             engine().replaceConfig(settings("{}"));
             respawn(player);
             var carried = drops(test).stream().filter(item -> item.getItem().is(Items.DIAMOND)).findFirst().orElseThrow();
             test.assertTrue(protectedDrop(carried), "Later removal drops use the decision captured before configuration changes");
+            TagValueOutput savedDrop = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+            carried.saveWithoutId(savedDrop);
+            test.assertValueEqual(savedDrop.buildResult().getIntOr("gentle-start-mod:lifetime_ticks", 0), 840,
+                    "Later container cleanup uses the lifetime captured at death");
             test.assertValueEqual(carried.getItem().getCount(), 7, "Cursor stack is dropped once with its full count");
         });
         test.succeed();

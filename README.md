@@ -51,6 +51,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 配置文件：`config/gentle-start-mod.json`。
 
 - `enabled`：全局开关。
+- `playersPerTick`：每个服务端 tick 最多轮转检查多少名在线玩家的自动取消条件，正整数，默认 `1`。在线人数稳定为 P 时，一轮约需 `ceil(P / playersPerTick)` tick；每 tick 不重复检查同一玩家。物品、等级、进度变化以及实际保护判定仍保留即时检查，该值只限制周期全量检查。
 - `defaults`：所有玩家使用的默认规则。
 - `players`：以 UUID 为索引，为指定玩家覆盖默认规则。
 
@@ -75,6 +76,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 ```json
 {
   "enabled": true,
+  "playersPerTick": 1,
   "defaults": {
     "inventory": { "minutes": 120 },
     "experience": { "minutes": 120, "ratio": 1.0 },
@@ -95,14 +97,14 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 ```json
 {
   "revive": { "minutes": 60, "uses": 3, "health": 10 },
-  "deathDrops": { "minutes": 120 },
+  "deathDrops": { "minutes": 120, "lifetimeSeconds": 600 },
   "damageReduction": { "minutes": 60, "reduction": 0.25 },
   "mobRange": { "minutes": 60, "multiplier": 0.5 }
 }
 ```
 
 - `revive`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。免死本身不附带无敌，需要另外开启 `respawnProtection`。
-- `deathDrops`：死亡掉落在正常 TPS、区块持续进行实体更新时约 10 分钟后消失。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
+- `deathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
 - `damageReduction`：减免 25% 的传入伤害，在护甲和药水减伤前生效。
 - `mobRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
 
@@ -178,6 +180,18 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 ## 命令
 
+### 交互式管理员配置
+
+管理员在游戏中执行 `/gentlestart admin` 或 `/gentlestart admin ui`，打开原版对话框，无需客户端安装模组：
+
+- **全局设置**：调整总开关和 `playersPerTick`，点击保存立即写入配置。
+- **默认保护规则**：选择功能，直接编辑期限、比例、次数、生命、无敌秒数、掉落物寿命和取消条件数值。
+- **选择玩家**：分页显示在线玩家与已有 UUID 覆盖，也可通过玩家名查找；表单显示该玩家合并后的当前值。
+- 布尔规则使用勾选框。保存会校验整个修改，失败不写入；成功后重新打开表单显示最新值。取消不会保存。
+- 玩家表单保存的字段会成为该 UUID 的显式覆盖；物品筛选列表、药水效果列表等复杂结构继续使用 `rule` 命令。调整规则不会重置已取消状态或已用免死次数。
+
+可直接打开 `/gentlestart admin ui defaults deathDrops` 或 `/gentlestart admin ui player <UUID> deathDrops`。控制台保留原有文本管理命令；界面操作同样检查管理员权限。
+
 玩家使用 `/gentlestart status` 查看自己的保护状态，使用 `/gentlestart help` 查看帮助。
 
 管理员命令需要 OP 2 级权限，也可以从服务器控制台执行。命令支持 Tab 补全。
@@ -204,6 +218,8 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | `enabled <true或false>` | 保存全局启用开关 |
 | `reload` | 重新读取并校验配置，失败时保留正在使用的配置 |
 | `defaults` | 查看默认规则 |
+| `ui` | 打开游戏内管理界面 |
+| `settings <true或false> <每tick人数>` | 一次保存全局开关和周期检查人数 |
 | `defaults set <功能> <分钟>` | 修改默认累计时间阈值 |
 | `defaults rule <功能> <JSON对象>` | 合并修改默认规则的任意受支持字段 |
 | `player <UUID>` | 查看该玩家各项期限、取消原因和免死次数；离线时不虚构剩余时间 |

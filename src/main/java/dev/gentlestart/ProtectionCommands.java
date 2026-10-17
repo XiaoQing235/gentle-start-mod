@@ -22,6 +22,7 @@ import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.commands.arguments.UuidArgument;
 import net.minecraft.commands.arguments.GameProfileArgument;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.server.level.ServerPlayer;
 
 public final class ProtectionCommands {
@@ -41,8 +42,43 @@ public final class ProtectionCommands {
             return 1;
         }));
         var admin = Commands.literal("admin").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
-                .executes(ProtectionCommands::adminHelp);
+                .executes(guard(context -> context.getSource().getEntity() instanceof ServerPlayer
+                        ? openDialog(context, AdminDialogs.home(engine().config())) : adminHelp(context)));
         admin.then(Commands.literal("help").executes(ProtectionCommands::adminHelp));
+        var ui = Commands.literal("ui").executes(guard(context -> openDialog(context, AdminDialogs.home(engine().config()))));
+        ui.then(Commands.literal("defaults").executes(guard(context -> openDialog(context, AdminDialogs.features(engine().config(), null))))
+                .then(feature(false).executes(guard(context -> openRule(context, null)))));
+        ui.then(Commands.literal("player").then(uuidArgument("uuid")
+                .executes(guard(context -> openDialog(context, AdminDialogs.features(engine().config(), uuid(context)))))
+                .then(feature(false).executes(guard(context -> openRule(context, uuid(context)))))));
+        ui.then(Commands.literal("players").executes(guard(context -> openPlayers(context, 1)))
+                .then(Commands.argument("page", IntegerArgumentType.integer(1)).executes(guard(context ->
+                        openPlayers(context, IntegerArgumentType.getInteger(context, "page"))))));
+        ui.then(Commands.literal("select").then(Commands.argument("player", GameProfileArgument.gameProfile()).executes(guard(context -> {
+            var selected = GameProfileArgument.getGameProfiles(context, "player");
+            if (selected.size() != 1) {
+                throw new IllegalArgumentException("请选择一名玩家。");
+            }
+            return openDialog(context, AdminDialogs.features(engine().config(), selected.iterator().next().id()));
+        }))));
+        ui.then(Commands.literal("apply").then(Commands.argument("target", StringArgumentType.word())
+                .then(feature(false).then(Commands.argument("json", StringArgumentType.greedyString()).executes(guard(context -> {
+                    String target = StringArgumentType.getString(context, "target");
+                    UUID id = target.equals("defaults") ? null : UUID.fromString(target);
+                    editRule(context, id);
+                    return context.getSource().getEntity() instanceof ServerPlayer ? openRule(context, id) : 1;
+                }))))));
+        admin.then(ui);
+        admin.then(Commands.literal("settings").then(Commands.argument("enabled", BoolArgumentType.bool())
+                .then(Commands.argument("playersPerTick", IntegerArgumentType.integer(1)).executes(guard(context -> {
+                    JsonObject document = engine().config().document();
+                    document.addProperty("enabled", BoolArgumentType.getBool(context, "enabled"));
+                    document.addProperty("playersPerTick", IntegerArgumentType.getInteger(context, "playersPerTick"));
+                    engine().replaceConfig(ProtectionConfig.parse(document));
+                    reply(context, "全局设置已保存。", true);
+                    return context.getSource().getEntity() instanceof ServerPlayer
+                            ? openDialog(context, AdminDialogs.home(engine().config())) : 1;
+                })))));
         admin.then(Commands.literal("lookup").then(Commands.argument("player", GameProfileArgument.gameProfile())
                 .executes(guard(context -> {
                     for (var player : GameProfileArgument.getGameProfiles(context, "player")) {
@@ -137,12 +173,30 @@ public final class ProtectionCommands {
     }
 
     private static int adminHelp(CommandContext<CommandSourceStack> context) {
-        for (String command : List.of("lookup <玩家名或选择器>", "list [页码]", "enabled <true|false>", "reload",
+        for (String command : List.of("ui [defaults|players|player <UUID>]", "settings <true|false> <每tick人数>",
+                "lookup <玩家名或选择器>", "list [页码]", "enabled <true|false>", "reload",
                 "defaults set <功能> <分钟>", "defaults rule <功能> <JSON对象>",
                 "player <UUID> [show|set|grant|rule|clear|cancel|reset|revives]", "copy <源UUID> <目标UUID>")) {
             reply(context, "/gentlestart admin " + command, false);
         }
         return 1;
+    }
+
+    private static int openDialog(CommandContext<CommandSourceStack> context, JsonObject document)
+            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        context.getSource().getPlayerOrException().openDialog(AdminDialogs.decode(document));
+        return 1;
+    }
+
+    private static int openRule(CommandContext<CommandSourceStack> context, UUID target)
+            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        return openDialog(context, AdminDialogs.rule(engine().config(), target,
+                Feature.parse(StringArgumentType.getString(context, "feature"))));
+    }
+
+    private static int openPlayers(CommandContext<CommandSourceStack> context, int page)
+            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        return openDialog(context, AdminDialogs.players(engine(), context.getSource().getPlayerOrException(), page));
     }
 
     private static UUID uuid(CommandContext<CommandSourceStack> context) {
@@ -257,6 +311,14 @@ public final class ProtectionCommands {
             try {
                 return action.run(context);
             } catch (IllegalArgumentException | IllegalStateException | JsonParseException exception) {
+                if (context.getInput().startsWith("gentlestart admin ui apply ")
+                        && context.getSource().getEntity() instanceof ServerPlayer player) {
+                    String target = StringArgumentType.getString(context, "target");
+                    String reopen = "/gentlestart admin ui " + (target.equals("defaults") ? "defaults" : "player " + target)
+                            + " " + StringArgumentType.getString(context, "feature");
+                    player.sendSystemMessage(Component.literal("[重新打开配置表单]")
+                            .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand(reopen))));
+                }
                 throw ERROR.create(exception.getMessage());
             }
         };

@@ -17,13 +17,15 @@ import java.util.UUID;
 public final class ProtectionConfig {
     private final JsonObject document;
     private final boolean enabled;
+    private final int playersPerTick;
     private final ProtectionRules.Profile defaults;
     private final Map<UUID, ProtectionRules.Profile> players;
 
-    private ProtectionConfig(JsonObject document, boolean enabled, ProtectionRules.Profile defaults,
+    private ProtectionConfig(JsonObject document, boolean enabled, int playersPerTick, ProtectionRules.Profile defaults,
                              Map<UUID, ProtectionRules.Profile> players) {
         this.document = document.deepCopy();
         this.enabled = enabled;
+        this.playersPerTick = playersPerTick;
         this.defaults = defaults;
         this.players = Map.copyOf(players);
     }
@@ -38,6 +40,10 @@ public final class ProtectionConfig {
 
     public boolean enabled() {
         return enabled;
+    }
+
+    public int playersPerTick() {
+        return playersPerTick;
     }
 
     public ProtectionRules.Profile profile(UUID player) {
@@ -70,8 +76,13 @@ public final class ProtectionConfig {
 
     public static ProtectionConfig parse(JsonObject input) {
         JsonObject root = input.deepCopy();
-        checkFields(root, Set.of("enabled", "defaults", "players"), "root");
+        checkFields(root, Set.of("enabled", "playersPerTick", "defaults", "players"), "root");
         boolean enabled = !root.has("enabled") || Codec.BOOL.parse(JsonOps.INSTANCE, root.get("enabled")).getOrThrow();
+        int playersPerTick = 1;
+        if (root.has("playersPerTick")) {
+            integer(root.get("playersPerTick"), "playersPerTick");
+            playersPerTick = Codec.intRange(1, Integer.MAX_VALUE).parse(JsonOps.INSTANCE, root.get("playersPerTick")).getOrThrow();
+        }
         JsonObject defaultJson = root.has("defaults") ? object(root.get("defaults"), "defaults") : new JsonObject();
         validateProfileFields(defaultJson);
         ProtectionRules.Profile defaults = ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE,
@@ -90,9 +101,10 @@ public final class ProtectionConfig {
             canonicalEntries.add(id.toString(), override.deepCopy());
         }
         root.addProperty("enabled", enabled);
+        root.addProperty("playersPerTick", playersPerTick);
         root.add("defaults", encode(defaults));
         root.add("players", canonicalEntries);
-        return new ProtectionConfig(root, enabled, defaults, players);
+        return new ProtectionConfig(root, enabled, playersPerTick, defaults, players);
     }
 
     public static ProtectionConfig load(Path file) {
@@ -149,7 +161,8 @@ public final class ProtectionConfig {
             Set<String> fields = switch (feature) {
                 case INVENTORY -> Set.of("minutes", "cancel", "keep");
                 case EXPERIENCE -> Set.of("minutes", "cancel", "ratio");
-                case SCORE, DEATH_DROPS -> Set.of("minutes", "cancel");
+                case SCORE -> Set.of("minutes", "cancel");
+                case DEATH_DROPS -> Set.of("minutes", "cancel", "lifetimeSeconds");
                 case REVIVE -> Set.of("minutes", "cancel", "uses", "health", "effects");
                 case RESPAWN_PROTECTION -> Set.of("minutes", "cancel", "durationSeconds");
                 case EFFECTS -> Set.of("minutes", "cancel", "list");
@@ -158,7 +171,7 @@ public final class ProtectionConfig {
                 case MOB_RANGE -> Set.of("minutes", "cancel", "multiplier");
             };
             checkFields(rule, fields, name);
-            for (String field : Set.of("uses", "durationSeconds")) {
+            for (String field : Set.of("uses", "durationSeconds", "lifetimeSeconds")) {
                 if (rule.has(field)) {
                     integer(rule.get(field), field);
                 }

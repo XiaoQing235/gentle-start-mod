@@ -8,9 +8,12 @@ import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.level.storage.ValueInput;
 import net.minecraft.world.level.storage.ValueOutput;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.Constant;
+import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -18,11 +21,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 abstract class ItemEntityMixin implements DeathDropProtection {
     @Unique
     private boolean gentleStart$protected;
+    @Unique
+    private int gentleStart$lifetimeTicks = 6000;
+    @Shadow
+    private int age;
 
     @Override
-    public void gentleStart$protect() {
+    public void gentleStart$protect(int lifetimeSeconds) {
         gentleStart$protected = true;
-        ((ItemEntity) (Object) this).setExtendedLifetime();
+        gentleStart$lifetimeTicks = lifetimeSeconds * 20;
+        age = 0;
+    }
+
+    @ModifyConstant(method = "tick", constant = @Constant(intValue = 6000))
+    private int gentleStart$lifetime(int original) {
+        return gentleStart$protected ? gentleStart$lifetimeTicks : original;
     }
 
     @Override
@@ -55,11 +68,20 @@ abstract class ItemEntityMixin implements DeathDropProtection {
     @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
     private void gentleStart$save(ValueOutput output, CallbackInfo callback) {
         output.putBoolean("gentle-start-mod:death_drop", gentleStart$protected);
+        if (gentleStart$protected) {
+            output.putInt("gentle-start-mod:lifetime_ticks", gentleStart$lifetimeTicks);
+            // Vanilla saves Age as a short; configured lifetimes can exceed that range.
+            output.putInt("gentle-start-mod:age", age);
+        }
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
     private void gentleStart$load(ValueInput input, CallbackInfo callback) {
-        // Restore only the marker. The saved vanilla Age must keep counting from its previous value.
         gentleStart$protected = input.getBooleanOr("gentle-start-mod:death_drop", false);
+        if (gentleStart$protected) {
+            // Older drops used negative vanilla Age and the vanilla 6000-tick deadline.
+            gentleStart$lifetimeTicks = input.getIntOr("gentle-start-mod:lifetime_ticks", 6000);
+            age = input.getIntOr("gentle-start-mod:age", age);
+        }
     }
 }

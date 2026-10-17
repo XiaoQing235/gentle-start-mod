@@ -21,6 +21,8 @@ abstract class ServerPlayerMixin implements DeathProtection {
     private DeathSnapshot gentleStart$death = DeathSnapshot.NONE;
     @Unique
     private boolean gentleStart$protectDrops;
+    @Unique
+    private int gentleStart$dropLifetimeSeconds = 600;
 
     @Inject(method = "die", at = @At("HEAD"), cancellable = true)
     private void gentleStart$captureDeath(DamageSource source, CallbackInfo callback) {
@@ -34,6 +36,7 @@ abstract class ServerPlayerMixin implements DeathProtection {
         }
         // Keep this decision through the old player's later removal and container cleanup.
         gentleStart$protectDrops = engine.active(player, Feature.DEATH_DROPS);
+        gentleStart$dropLifetimeSeconds = engine.profile(player).deathDrops().lifetimeSeconds();
         gentleStart$death = DeathSnapshot.capture(player, engine.active(player, Feature.INVENTORY),
                 engine.active(player, Feature.EXPERIENCE) ? engine.profile(player).experience().ratio() : 0,
                 engine.active(player, Feature.SCORE));
@@ -45,6 +48,7 @@ abstract class ServerPlayerMixin implements DeathProtection {
             output.store("gentle-start-mod:death", DeathSnapshot.CODEC, gentleStart$death);
         }
         output.putBoolean("gentle-start-mod:protect_death_drops", gentleStart$protectDrops);
+        output.putInt("gentle-start-mod:drop_lifetime_seconds", gentleStart$dropLifetimeSeconds);
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
@@ -52,6 +56,7 @@ abstract class ServerPlayerMixin implements DeathProtection {
         ServerPlayer player = (ServerPlayer) (Object) this;
         gentleStart$protectDrops = player.isDeadOrDying()
                 && input.getBooleanOr("gentle-start-mod:protect_death_drops", false);
+        gentleStart$dropLifetimeSeconds = input.getIntOr("gentle-start-mod:drop_lifetime_seconds", 600);
         gentleStart$death = player.isDeadOrDying()
                 ? input.read("gentle-start-mod:death", DeathSnapshot.CODEC).orElse(DeathSnapshot.NONE)
                 : DeathSnapshot.NONE;
@@ -70,5 +75,10 @@ abstract class ServerPlayerMixin implements DeathProtection {
     @Override
     public boolean gentleStart$protectDrops() {
         return gentleStart$protectDrops;
+    }
+
+    @Override
+    public int gentleStart$dropLifetimeSeconds() {
+        return gentleStart$dropLifetimeSeconds;
     }
 }

@@ -176,12 +176,20 @@ public final class ProtectionRules {
         ).apply(instance, MobRange::new));
     }
 
+    public record DeathDrops(Window window, int lifetimeSeconds) {
+        public static final DeathDrops DEFAULT = new DeathDrops(Window.DISABLED, 600);
+        public static final Codec<DeathDrops> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Window.CODEC.forGetter(DeathDrops::window),
+                field(Codec.intRange(1, 86400), "lifetimeSeconds", 600).forGetter(DeathDrops::lifetimeSeconds)
+        ).apply(instance, DeathDrops::new));
+    }
+
     public record Profile(Inventory inventory, Experience experience, Window score, Revive revive,
                           Effects effects, Pvp pvp, Reduction damageReduction, MobRange mobRange,
-                          RespawnProtection respawnProtection, Window deathDrops) {
+                          RespawnProtection respawnProtection, DeathDrops deathDrops) {
         public static final Profile DEFAULT = new Profile(Inventory.DEFAULT, Experience.DEFAULT,
                 new Window(120, Cancellation.NONE), Revive.DEFAULT, Effects.DEFAULT, Pvp.DEFAULT,
-                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, Window.DISABLED);
+                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, DeathDrops.DEFAULT);
         public static final Codec<Profile> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 field(Inventory.CODEC, "inventory", Inventory.DEFAULT).forGetter(Profile::inventory),
                 field(Experience.CODEC, "experience", Experience.DEFAULT).forGetter(Profile::experience),
@@ -192,7 +200,7 @@ public final class ProtectionRules {
                 field(Reduction.CODEC, "damageReduction", Reduction.DEFAULT).forGetter(Profile::damageReduction),
                 field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
                 field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection),
-                field(Window.CODEC.codec(), "deathDrops", Window.DISABLED).forGetter(Profile::deathDrops)
+                field(DeathDrops.CODEC, "deathDrops", DeathDrops.DEFAULT).forGetter(Profile::deathDrops)
         ).apply(instance, Profile::new));
 
         public Window window(Feature feature) {
@@ -206,7 +214,7 @@ public final class ProtectionRules {
                 case DAMAGE_REDUCTION -> damageReduction.window();
                 case MOB_RANGE -> mobRange.window();
                 case RESPAWN_PROTECTION -> respawnProtection.window();
-                case DEATH_DROPS -> deathDrops;
+                case DEATH_DROPS -> deathDrops.window();
             };
         }
     }

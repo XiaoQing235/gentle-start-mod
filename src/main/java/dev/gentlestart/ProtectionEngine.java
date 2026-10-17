@@ -29,6 +29,7 @@ public final class ProtectionEngine {
     private final Path configFile;
     private final PlayerStates states;
     private ProtectionConfig config;
+    private int nextConditionPlayer;
 
     public ProtectionEngine(MinecraftServer server, Path configFile, Path stateFile) {
         this.server = server;
@@ -106,6 +107,22 @@ public final class ProtectionEngine {
             for (Feature feature : Feature.values()) {
                 evaluateCancellation(player, feature);
             }
+        }
+    }
+
+    void checkNextPlayers(List<ServerPlayer> players) {
+        if (players.isEmpty()) {
+            nextConditionPlayer = 0;
+            return;
+        }
+        if (!config.enabled()) {
+            return;
+        }
+        int count = Math.min(config.playersPerTick(), players.size());
+        for (int checked = 0; checked < count; checked++) {
+            nextConditionPlayer %= players.size();
+            checkConditions(players.get(nextConditionPlayer));
+            nextConditionPlayer++;
         }
     }
 
