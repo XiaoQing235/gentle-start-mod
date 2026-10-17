@@ -3,6 +3,7 @@
   "id": "gentle-start-mod",
   "version": "${version}",
   "name": "Gentle Start",
+  "license": "MIT",
   "description": "Configurable server-side protection for a gentler start in Minecraft.",
   "environment": "server",
   "entrypoints": {

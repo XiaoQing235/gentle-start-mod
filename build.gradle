@@ -43,3 +43,7 @@ tasks.withType(JavaCompile).configureEach {
     options.release = 25
     options.encoding = 'UTF-8'
 }
+
+tasks.withType(Jar).configureEach {
+    from(rootProject.file('LICENSE'))
+}

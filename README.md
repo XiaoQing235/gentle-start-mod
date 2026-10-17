@@ -292,3 +292,7 @@ try {
 ```
 
 这段命令在运行时计算目录，不保存本机绝对路径，也不改变全局 Java 设置。相关现象见 [Windows Java NIO 问题记录](https://github.com/openai/codex/issues/40902)。若当前环境需要 HTTP 代理，Java 还需在命令级别配置对应 `http(s).proxyHost` 和 `http(s).proxyPort`；地址及凭据不应写入可提交的工程配置。`build` 与 `genSources` 应分开调用，以避免当前 Loom 版本在合并任务图时的隐式依赖校验错误。
+
+## 许可证
+
+本项目采用 [MIT License](LICENSE)。
