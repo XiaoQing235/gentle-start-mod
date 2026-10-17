@@ -11,7 +11,9 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 | `inventory` | 保留全部物品或指定类别、物品 ID、标签、槽位 | 120 分钟 |
 | `experience` | 按当前可用经验点数比例保留经验 | 120 分钟，比例 1 |
 | `score` | 独立保留原版玩家分数，即死亡界面的分数；不修改计分板目标 | 120 分钟 |
-| `revive` | 原地直接免死、恢复生命，支持次数、短暂无敌和效果 | 0，需手动启用 |
+| `revive` | 原地直接免死、恢复到 10 点生命，支持次数和效果 | 0，需手动启用 |
+| `respawnProtection` | 原地免死成功或正常死亡重生后，短暂免疫全部普通伤害 | 0，需手动启用，默认持续 5 秒 |
+| `deathDrops` | 实际死亡掉落约 10 分钟后消失，禁合并、防火并抵抗普通伤害 | 0，需手动启用 |
 | `effects` | 定期刷新配置的原版持续状态效果 | 120 分钟，抗性 I、夜视 I |
 | `pvp` | 阻止玩家伤害，支持主动攻击后永久解除本项保护 | 0，需手动启用 |
 | `damageReduction` | 按比例减少传入伤害 | 0，需手动启用 |
@@ -21,7 +23,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 ## 安装和配置
 
-将 `build/libs/newcomer-protection-0.2.0-SNAPSHOT.jar` 与对应 Fabric API 放入 Fabric 26.2 服务端的 `mods/`。首次启动生成 `config/newcomer-protection.json`。编辑后使用 `/newcomer admin reload` 生效；新配置验证失败时继续使用旧配置，错误文件保留供修正。
+将 `build/libs/newcomer-protection-0.3.0-SNAPSHOT.jar` 与对应 Fabric API 放入 Fabric 26.2 服务端的 `mods/`。首次启动生成 `config/newcomer-protection.json`。编辑后使用 `/newcomer admin reload` 生效；新配置验证失败时继续使用旧配置，错误文件保留供修正。
 
 `defaults` 是所有玩家的默认规则；`players` 按 UUID 覆盖。未填写的字段逐层继承，列表整体替换。以下为展示各项功能的配置示例，其中主动启用了出厂配置中关闭的功能；示例 UUID 需替换为目标玩家 UUID：
 
@@ -52,11 +54,12 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
     "revive": {
       "minutes": 60,
       "uses": 3,
-      "invulnerabilitySeconds": 5,
       "effects": [
         { "id": "minecraft:fire_resistance", "level": 1, "durationSeconds": 10, "showParticles": false, "showIcon": true }
       ]
     },
+    "respawnProtection": { "minutes": 120, "durationSeconds": 5 },
+    "deathDrops": { "minutes": 120 },
     "effects": {
       "minutes": 120,
       "list": [
@@ -78,6 +81,8 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 ```
 
 未知字段、UUID、物品、效果、标签、进度 ID，以及无效比例、次数或槽位会明确报错。已有 0.1 配置中的秒数、保包和经验开关、效果列表会被识别并在内存中转换；读取不会覆盖旧文件，后续管理员命令保存时写入新格式。
+
+读取 0.2 配置文件时，会把旧 `revive.invulnerabilitySeconds` 转为独立的 `respawnProtection.durationSeconds`，并导入原先的期限与取消条件，包含 UUID 对默认规则的覆盖。显式填写的新 `respawnProtection` 字段优先。文件读取不会自动回写；管理员保存后采用新格式。新格式的 `revive` 和管理命令不再接受 `invulnerabilitySeconds`。
 
 ## 各功能的规则
 
@@ -109,9 +114,29 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 `revive.uses` 为总可用次数：-1 不限，0 不提供免死，正数为次数上限。用过的次数按 UUID 随世界保存，不会因死亡、重连或正常重启刷新。
 
-普通致命伤害先走原版不死图腾；没有图腾保住生命时才使用本模组次数。免死会恢复到最大生命、清除燃烧、冻结积累和摔落距离，保持原地，并给予配置效果。它不会发生死亡、掉落或真正的重生。
+普通致命伤害先走原版不死图腾；没有图腾保住生命时才使用本模组次数。免死会恢复到 10 点生命（原版 5 颗心；最大生命不足 10 时取上限）、清除燃烧、冻结积累和摔落距离，保持原地，并给予 `revive.effects` 配置的效果。它不会发生死亡、掉落或真正的重生。原版绕过无敌的特殊伤害不触发免死，包括 `/kill` 和虚空。
 
-`invulnerabilitySeconds` 是本次免死授予的无敌窗口，按服务器 tick 计时并持久化剩余截止点；窗口内不重复消耗次数。原版绕过无敌的伤害标签继续生效，包括 `/kill` 和虚空，因此原地免死不用于虚空传送救援。已授予的无敌和药水有各自持续时间；修改资格只影响后续激活，重置 `revive` 或设置已用次数会清除现有无敌窗口。
+`revive` 本身不附带模组无敌。需要免死后的无敌时，另行启用 `respawnProtection`；重置免死次数、取消 `revive` 或设置已用次数均不清除独立的重生无敌。
+
+### 独立重生无敌
+
+`respawnProtection.minutes` 控制累计游玩资格，`durationSeconds` 为每次无敌窗口的秒数（0～86400，0 不授予）。原地免死成功和真正死亡后重生都可以触发；首次加入、普通重连、不死图腾和末地返回等存活状态的玩家替换不会重新授予。
+
+窗口内免疫全部普通伤害，包括非致命伤害、近战、投射物、摔落、火焰、岩浆、饥饿和魔法伤害。原版 `BYPASSES_INVULNERABILITY` 标签的伤害继续绕过，包括 `/kill` 和虚空。无敌不依赖剩余免死次数，也不会额外消耗次数。
+
+窗口按服务器 tick 计时，截止点随 UUID 保存；玩家下线不会暂停服务器时间，也不会因重连刷新。资格到期或全局禁用后不生效；自动或管理员取消 `respawnProtection` 会清除窗口，重置该项也会清除窗口，但保留免死次数。`/newcomer status` 会显示当前窗口剩余秒数。无敌期间仍遵守 PvP 主动攻击解除规则。
+
+### 死亡掉落保护
+
+`deathDrops` 使用独立的 `minutes` 和 `cancel`。资格在死亡时确定，只作用于本次实际掉落的物品，包括稍后重生移除旧玩家时掉出的光标物品；死亡界面期间修改配置不追溯改变该次决定。
+
+- 新生成的死亡掉落调用原版 `setExtendedLifetime()`，初始年龄为 -6000，达到 6000 时自然消失，总计 12000 个实体 tick，正常 TPS 下约 10 分钟。
+- 寿命只在实体实际更新时推进，卸载或停止实体更新的区块中暂停；保存重载后继续原有年龄，不重新获得 10 分钟。
+- 受保护掉落禁止与任何掉落物合并。原有物品堆不会拆成单个物品；拾取到背包后仍正常堆叠，漏斗仍可收集。
+- 掉落实体防火，并免疫火焰、岩浆、爆炸、仙人掌等普通伤害。特殊伤害标签、管理员直接清除和掉入虚空后的直接移除仍生效；不提供虚空传送救援。
+- 普通主动丢弃、挖矿和刷怪掉落保持原版行为；其他玩家仍可拾取死亡掉落。部分物品保留时，只保护未保留而实际掉出的部分。消失诅咒销毁的物品不会被重新生成；经验球不属于本项。
+
+保护标记随掉落物实体保存，不写入物品堆组件；已经生成的受保护掉落保留该次授予的行为，后续取消资格只影响新的死亡。禁用合并可能使多次死亡地点保留更多掉落实体。此项寿命固定为原版延寿方法的约 10 分钟，没有额外的寿命或合并开关字段。
 
 ### PvP、减伤与仇恨
 
@@ -161,11 +186,11 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 | `player <UUID> rule <功能> <JSON对象>` | 合并修改该 UUID 的规则 |
 | `player <UUID> clear <功能或all>` | 删除配置覆盖，恢复继承；不重置次数或取消状态 |
 | `player <UUID> cancel <功能或all>` | 持久取消保护 |
-| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；重置 revive 还会清零已用次数及无敌窗口 |
-| `player <UUID> revives <已用次数>` | 设置已用免死次数，同时清除当前无敌窗口 |
+| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；revive 清零已用次数，respawnProtection 清除无敌窗口 |
+| `player <UUID> revives <已用次数>` | 设置已用免死次数，保留独立无敌窗口 |
 | `copy <源UUID> <目标UUID>` | 复制生效规则，不复制取消历史或已用次数 |
 
-功能参数为 `inventory`、`experience`、`score`、`revive`、`effects`、`pvp`、`damageReduction`、`mobRange`。
+功能参数为 `inventory`、`experience`、`score`、`revive`、`respawnProtection`、`deathDrops`、`effects`、`pvp`、`damageReduction`、`mobRange`。
 
 示例：
 
@@ -173,7 +198,9 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 /newcomer admin defaults set pvp 120
 /newcomer admin player 00000000-0000-0000-0000-000000000001 set inventory -1
 /newcomer admin player 00000000-0000-0000-0000-000000000001 rule experience {"minutes":60,"ratio":0.5}
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"invulnerabilitySeconds":3}
+/newcomer admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"effects":[{"id":"minecraft:fire_resistance","durationSeconds":10}]}
+/newcomer admin player 00000000-0000-0000-0000-000000000001 rule respawnProtection {"minutes":120,"durationSeconds":3}
+/newcomer admin player 00000000-0000-0000-0000-000000000001 set deathDrops -1
 /newcomer admin player 00000000-0000-0000-0000-000000000001 rule inventory {"cancel":{"experienceLevel":30}}
 ```
 ## 开发环境
@@ -219,7 +246,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 .\gradlew.bat runGameTest
 ```
 
-测试覆盖 UUID 覆盖和独立期限、部分槽位与标签保留、经验比例与分数、死亡快照保存恢复、图腾与免死次数、无敌到期、PvP 与箭矢、减伤、仇恨范围、自动取消及历史、管理员权限、离线配置和错误重载。GameTest 使用隔离的测试服务器数据，不要求启动正式服务器。测试模组不会打入发布 Jar。
+测试覆盖 UUID 覆盖和独立期限、部分槽位与标签保留、经验比例与分数、死亡快照保存恢复、图腾与半血免死、药水效果、正常重生及免死后的独立无敌、全部普通伤害与特殊伤害绕过、无敌到期和独立取消、掉落延寿与存档、不合并和普通合并、防火及抗伤害、后续容器清理、PvP 与箭矢、减伤、仇恨范围、自动取消及历史、管理员权限、离线配置和错误重载。GameTest 使用隔离的测试服务器数据，不要求启动正式服务器。测试模组不会打入发布 Jar。
 
 可行性依据和工程准备阶段的历史验证见 [调研记录](docs/feasibility.md)。自动化测试不能代替原版客户端连接和目标模组组合的实际验收。
 
