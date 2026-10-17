@@ -70,7 +70,8 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void reviveTimerPersistsAndOldStateFilesRemainReadable(GameTestHelper test) throws Exception {
-        java.nio.file.Path file = java.nio.file.Files.createTempFile("gentlestart-revive-state-", ".json");
+        java.nio.file.Path root = java.nio.file.Files.createTempDirectory("gentlestart-revive-state-");
+        java.nio.file.Path file = root.resolve("state.json");
         try {
             java.nio.file.Files.writeString(file, "{}");
             PlayerStates states = new PlayerStates(file);
@@ -82,14 +83,15 @@ public class RecoveryProtectionGameTests {
             test.assertValueEqual(loaded.revivesUsed(), 1, "Charge usage persists");
             test.assertValueEqual(loaded.reviveInvulnerableUntil(), 120L, "Revive deadline persists independently");
             test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Respawn deadline is unchanged");
-            var json = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(file)).getAsJsonObject();
-            json.getAsJsonObject(id.toString()).remove("reviveInvulnerableUntil");
-            java.nio.file.Files.writeString(file, json.toString());
+            var playerFile = StatePersistenceGameTests.playerFile(file, id);
+            var json = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(playerFile)).getAsJsonObject();
+            json.remove("reviveInvulnerableUntil");
+            java.nio.file.Files.writeString(playerFile, json.toString());
             loaded = new PlayerStates(file).get(id);
             test.assertValueEqual(loaded.reviveInvulnerableUntil(), 0L, "Old state grants no new revive immunity");
             test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Old respawn deadline is preserved");
         } finally {
-            java.nio.file.Files.deleteIfExists(file);
+            StatePersistenceGameTests.delete(root);
         }
         test.succeed();
     }
