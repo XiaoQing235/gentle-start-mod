@@ -20,16 +20,21 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 abstract class ServerPlayerMixin implements DeathProtection {
     @Unique
     private DeathSnapshot newcomerProtection$death = DeathSnapshot.NONE;
+    @Unique
+    private boolean newcomerProtection$protectDrops;
 
     @Inject(method = "die", at = @At("HEAD"), cancellable = true)
     private void newcomerProtection$captureDeath(DamageSource source, CallbackInfo callback) {
         ServerPlayer player = (ServerPlayer) (Object) this;
         ProtectionEngine engine = NewcomerProtection.engine();
+        newcomerProtection$protectDrops = false;
         // Vanilla has already tried a held totem before calling ServerPlayer.die.
         if (engine.revive(player, source)) {
             callback.cancel();
             return;
         }
+        // Keep this decision through the old player's later removal and container cleanup.
+        newcomerProtection$protectDrops = engine.active(player, Feature.DEATH_DROPS);
         newcomerProtection$death = DeathSnapshot.capture(player, engine.active(player, Feature.INVENTORY),
                 engine.active(player, Feature.EXPERIENCE) ? engine.profile(player).experience().ratio() : 0,
                 engine.active(player, Feature.SCORE));
@@ -40,11 +45,14 @@ abstract class ServerPlayerMixin implements DeathProtection {
         if (!newcomerProtection$death.equals(DeathSnapshot.NONE)) {
             output.store("newcomer-protection:death", DeathSnapshot.CODEC, newcomerProtection$death);
         }
+        output.putBoolean("newcomer-protection:protect_death_drops", newcomerProtection$protectDrops);
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
     private void newcomerProtection$loadDeath(ValueInput input, CallbackInfo callback) {
         ServerPlayer player = (ServerPlayer) (Object) this;
+        newcomerProtection$protectDrops = player.isDeadOrDying()
+                && input.getBooleanOr("newcomer-protection:protect_death_drops", false);
         newcomerProtection$death = player.isDeadOrDying()
                 ? input.read("newcomer-protection:death", DeathSnapshot.CODEC).orElseGet(() -> {
                     // Preserve pending deaths saved by version 0.1.
@@ -64,5 +72,10 @@ abstract class ServerPlayerMixin implements DeathProtection {
     @Override
     public DeathSnapshot newcomerProtection$death() {
         return newcomerProtection$death;
+    }
+
+    @Override
+    public boolean newcomerProtection$protectDrops() {
+        return newcomerProtection$protectDrops;
     }
 }

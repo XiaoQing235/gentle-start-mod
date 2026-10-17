@@ -4,6 +4,8 @@ package dev.newcomerprotection;
 public interface DeathProtection {
     DeathSnapshot newcomerProtection$death();
 
+    boolean newcomerProtection$protectDrops();
+
     default boolean newcomerProtection$keepInventory() {
         return !newcomerProtection$death().slots().isEmpty();
     }

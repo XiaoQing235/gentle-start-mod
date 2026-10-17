@@ -223,7 +223,7 @@ public final class ProtectionConfig {
             Set<String> fields = switch (feature) {
                 case INVENTORY -> Set.of("minutes", "cancel", "keep");
                 case EXPERIENCE -> Set.of("minutes", "cancel", "ratio");
-                case SCORE -> Set.of("minutes", "cancel");
+                case SCORE, DEATH_DROPS -> Set.of("minutes", "cancel");
                 case REVIVE -> Set.of("minutes", "cancel", "uses", "effects");
                 case RESPAWN_PROTECTION -> Set.of("minutes", "cancel", "durationSeconds");
                 case EFFECTS -> Set.of("minutes", "cancel", "list");

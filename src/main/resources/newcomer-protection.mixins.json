@@ -10,7 +10,8 @@
     "MobMixin",
     "InventoryMixin",
     "InventoryChangeTriggerMixin",
-    "PlayerAdvancementsMixin"
+    "PlayerAdvancementsMixin",
+    "ItemEntityMixin"
   ],
   "injectors": {
     "defaultRequire": 1

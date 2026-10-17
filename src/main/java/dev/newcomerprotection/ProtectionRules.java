@@ -175,10 +175,10 @@ public final class ProtectionRules {
 
     public record Profile(Inventory inventory, Experience experience, Window score, Revive revive,
                           Effects effects, Pvp pvp, Reduction damageReduction, MobRange mobRange,
-                          RespawnProtection respawnProtection) {
+                          RespawnProtection respawnProtection, Window deathDrops) {
         public static final Profile DEFAULT = new Profile(Inventory.DEFAULT, Experience.DEFAULT,
                 new Window(120, Cancellation.NONE), Revive.DEFAULT, Effects.DEFAULT, Pvp.DEFAULT,
-                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT);
+                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, Window.DISABLED);
         public static final Codec<Profile> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 field(Inventory.CODEC, "inventory", Inventory.DEFAULT).forGetter(Profile::inventory),
                 field(Experience.CODEC, "experience", Experience.DEFAULT).forGetter(Profile::experience),
@@ -188,7 +188,8 @@ public final class ProtectionRules {
                 field(Pvp.CODEC, "pvp", Pvp.DEFAULT).forGetter(Profile::pvp),
                 field(Reduction.CODEC, "damageReduction", Reduction.DEFAULT).forGetter(Profile::damageReduction),
                 field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
-                field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection)
+                field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection),
+                field(Window.CODEC.codec(), "deathDrops", Window.DISABLED).forGetter(Profile::deathDrops)
         ).apply(instance, Profile::new));
 
         public Window window(Feature feature) {
@@ -202,6 +203,7 @@ public final class ProtectionRules {
                 case DAMAGE_REDUCTION -> damageReduction.window();
                 case MOB_RANGE -> mobRange.window();
                 case RESPAWN_PROTECTION -> respawnProtection.window();
+                case DEATH_DROPS -> deathDrops;
             };
         }
     }
