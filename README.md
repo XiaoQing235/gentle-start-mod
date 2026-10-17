@@ -11,7 +11,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 | `inventory` | 保留全部物品或指定类别、物品 ID、标签、槽位 | 120 分钟 |
 | `experience` | 按当前可用经验点数比例保留经验 | 120 分钟，比例 1 |
 | `score` | 独立保留原版玩家分数，即死亡界面的分数；不修改计分板目标 | 120 分钟 |
-| `revive` | 原地直接免死、恢复到 10 点生命，支持次数和效果 | 0，需手动启用 |
+| `revive` | 原地直接免死，支持恢复血量、次数和效果 | 0，需手动启用，默认恢复到 10 点生命 |
 | `respawnProtection` | 原地免死成功或正常死亡重生后，短暂免疫全部普通伤害 | 0，需手动启用，默认持续 5 秒 |
 | `deathDrops` | 实际死亡掉落约 10 分钟后消失，禁合并、防火并抵抗普通伤害 | 0，需手动启用 |
 | `effects` | 定期刷新配置的原版持续状态效果 | 120 分钟，抗性 I、夜视 I |
@@ -54,6 +54,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
     "revive": {
       "minutes": 60,
       "uses": 3,
+      "health": 10,
       "effects": [
         { "id": "minecraft:fire_resistance", "level": 1, "durationSeconds": 10, "showParticles": false, "showIcon": true }
       ]
@@ -114,7 +115,11 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 `revive.uses` 为总可用次数：-1 不限，0 不提供免死，正数为次数上限。用过的次数按 UUID 随世界保存，不会因死亡、重连或正常重启刷新。
 
-普通致命伤害先走原版不死图腾；没有图腾保住生命时才使用本模组次数。免死会恢复到 10 点生命（原版 5 颗心；最大生命不足 10 时取上限）、清除燃烧、冻结积累和摔落距离，保持原地，并给予 `revive.effects` 配置的效果。它不会发生死亡、掉落或真正的重生。原版绕过无敌的特殊伤害不触发免死，包括 `/kill` 和虚空。
+`revive.health` 是免死后恢复到的生命值，默认 10（原版 5 颗心），支持大于 0 的有限小数；超过玩家当前最大生命时取最大生命。它是恢复后的绝对血量，不是增加的血量或百分比。旧配置省略此字段时仍恢复到 10。
+
+普通致命伤害先走原版不死图腾；没有图腾保住生命时才使用本模组次数。免死会恢复到配置血量、清除燃烧、冻结积累和摔落距离，保持原地，并给予 `revive.effects` 配置的效果。原版绕过无敌的特殊伤害不触发免死，包括 `/kill` 和虚空。
+
+实现是在 `ServerPlayer.die()` 方法体执行前恢复生命并取消死亡处理，不会发送该方法内的死亡界面包、生成死亡掉落或增加死亡统计，也不会调用重生流程替换玩家。伤害结算中血量可能短暂到 0，但在同一次调用内恢复；原版后续同步的是恢复后的生命值。受击、击退，以及在此拦截点之前调用的死亡音效可能仍然出现；未进行真实客户端画面验证。
 
 `revive` 本身不附带模组无敌。需要免死后的无敌时，另行启用 `respawnProtection`；重置免死次数、取消 `revive` 或设置已用次数均不清除独立的重生无敌。
 
@@ -198,7 +203,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 /newcomer admin defaults set pvp 120
 /newcomer admin player 00000000-0000-0000-0000-000000000001 set inventory -1
 /newcomer admin player 00000000-0000-0000-0000-000000000001 rule experience {"minutes":60,"ratio":0.5}
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"effects":[{"id":"minecraft:fire_resistance","durationSeconds":10}]}
+/newcomer admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"health":8,"effects":[{"id":"minecraft:fire_resistance","durationSeconds":10}]}
 /newcomer admin player 00000000-0000-0000-0000-000000000001 rule respawnProtection {"minutes":120,"durationSeconds":3}
 /newcomer admin player 00000000-0000-0000-0000-000000000001 set deathDrops -1
 /newcomer admin player 00000000-0000-0000-0000-000000000001 rule inventory {"cancel":{"experienceLevel":30}}
@@ -246,7 +251,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 .\gradlew.bat runGameTest
 ```
 
-测试覆盖 UUID 覆盖和独立期限、部分槽位与标签保留、经验比例与分数、死亡快照保存恢复、图腾与半血免死、药水效果、正常重生及免死后的独立无敌、全部普通伤害与特殊伤害绕过、无敌到期和独立取消、掉落延寿与存档、不合并和普通合并、防火及抗伤害、后续容器清理、PvP 与箭矢、减伤、仇恨范围、自动取消及历史、管理员权限、离线配置和错误重载。GameTest 使用隔离的测试服务器数据，不要求启动正式服务器。测试模组不会打入发布 Jar。
+测试覆盖 UUID 覆盖和独立期限、部分槽位与标签保留、经验比例与分数、死亡快照保存恢复、图腾与可配置血量免死、死亡统计及玩家身份保持、药水效果、正常重生及免死后的独立无敌、全部普通伤害与特殊伤害绕过、无敌到期和独立取消、掉落延寿与存档、不合并和普通合并、防火及抗伤害、后续容器清理、PvP 与箭矢、减伤、仇恨范围、自动取消及历史、管理员权限、离线配置和错误重载。GameTest 使用隔离的测试服务器数据，不要求启动正式服务器。测试模组不会打入发布 Jar。
 
 可行性依据和工程准备阶段的历史验证见 [调研记录](docs/feasibility.md)。自动化测试不能代替原版客户端连接和目标模组组合的实际验收。
 

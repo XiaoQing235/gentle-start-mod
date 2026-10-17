@@ -128,11 +128,14 @@ public final class ProtectionRules {
         }
     }
 
-    public record Revive(Window window, int uses, List<Effect> effects) {
-        public static final Revive DEFAULT = new Revive(Window.DISABLED, 3, List.of());
+    public record Revive(Window window, int uses, float health, List<Effect> effects) {
+        private static final Codec<Float> HEALTH = Codec.FLOAT.validate(value -> Float.isFinite(value) && value > 0
+                ? DataResult.success(value) : DataResult.error(() -> "Revive health must be a finite positive number"));
+        public static final Revive DEFAULT = new Revive(Window.DISABLED, 3, 10.0F, List.of());
         public static final Codec<Revive> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Window.CODEC.forGetter(Revive::window),
                 field(Codec.intRange(-1, Integer.MAX_VALUE), "uses", 3).forGetter(Revive::uses),
+                field(HEALTH, "health", 10.0F).forGetter(Revive::health),
                 field(Effect.CODEC.listOf(), "effects", List.<Effect>of()).forGetter(Revive::effects)
         ).apply(instance, Revive::new));
 

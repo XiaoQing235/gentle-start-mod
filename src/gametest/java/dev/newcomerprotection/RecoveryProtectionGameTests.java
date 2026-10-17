@@ -13,10 +13,49 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.stats.Stats;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 public class RecoveryProtectionGameTests {
     private static ProtectionEngine engine() {
         return NewcomerProtection.engine();
+    }
+
+    @GameTest
+    public void configuredReviveHealthKeepsTheSameLivingPlayerWithoutDeath(GameTestHelper test) {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"health\":6.5}}"), () -> {
+            for (float health : new float[]{6.5F, 40.0F, 0.5F}) {
+                ServerPlayer player = player(test, 0);
+                if (health != 6.5F) {
+                    var override = com.google.gson.JsonParser.parseString("{\"revive\":{\"health\":" + health + "}}").getAsJsonObject();
+                    engine().replaceConfig(engine().config().withPlayer(player.getUUID(), override));
+                }
+                player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
+                player.giveExperiencePoints(55);
+                int experience = player.totalExperience;
+                int deaths = player.getStats().getValue(Stats.CUSTOM.get(Stats.DEATHS));
+                int dropped = ProtectionGameTests.drops(player);
+                int orbs = ProtectionGameTests.orbs(player);
+                int entityId = player.getId();
+                var position = player.position();
+                player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+                test.assertValueEqual(player.getHealth(), Math.min(health, player.getMaxHealth()),
+                        "Configured health inherits, overrides by UUID, and clamps to maximum health");
+                test.assertTrue(player.isAlive() && !player.isRemoved(), "The original player stays alive");
+                test.assertTrue(test.getLevel().getServer().getPlayerList().getPlayer(player.getUUID()) == player,
+                        "Revive does not replace the player through respawn");
+                test.assertValueEqual(player.getId(), entityId, "Entity identity is unchanged");
+                test.assertValueEqual(player.position(), position, "Revive does not move the player");
+                test.assertValueEqual(player.getStats().getValue(Stats.CUSTOM.get(Stats.DEATHS)), deaths, "Death statistics do not increase");
+                test.assertValueEqual(player.getInventory().countItem(Items.DIAMOND), 3, "Inventory stays with the living player");
+                test.assertValueEqual(player.totalExperience, experience, "Experience is not lost to death");
+                test.assertValueEqual(ProtectionGameTests.drops(player), dropped, "No death item drops occur");
+                test.assertValueEqual(ProtectionGameTests.orbs(player), orbs, "No death XP drops occur");
+                test.assertValueEqual(((DeathProtection) player).newcomerProtection$death(), DeathSnapshot.NONE,
+                        "Death processing never captures a retention snapshot");
+            }
+        });
+        test.succeed();
     }
 
     @GameTest

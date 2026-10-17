@@ -263,7 +263,7 @@ public final class ProtectionEngine {
             return false;
         }
         states.revive(player.getUUID());
-        player.setHealth(10.0F);
+        player.setHealth(revive.health());
         player.clearFire();
         player.setTicksFrozen(0);
         player.resetFallDistance();
