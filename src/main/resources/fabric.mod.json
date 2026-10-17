@@ -3,13 +3,16 @@
   "id": "newcomer-protection",
   "version": "${version}",
   "name": "Newcomer Protection",
-  "description": "Server-only project scaffold for future newcomer protection features.",
+  "description": "Server-only play-time based inventory, experience and status-effect protection for newcomers.",
   "environment": "server",
   "entrypoints": {
     "server": [
       "dev.newcomerprotection.NewcomerProtection"
     ]
   },
+  "mixins": [
+    "newcomer-protection.mixins.json"
+  ],
   "depends": {
     "fabricloader": ">=0.19.5",
     "minecraft": "~26.2",
