@@ -128,18 +128,25 @@ public final class ProtectionRules {
         }
     }
 
-    public record Revive(Window window, int uses, int invulnerabilitySeconds, List<Effect> effects) {
-        public static final Revive DEFAULT = new Revive(Window.DISABLED, 3, 5, List.of());
+    public record Revive(Window window, int uses, List<Effect> effects) {
+        public static final Revive DEFAULT = new Revive(Window.DISABLED, 3, List.of());
         public static final Codec<Revive> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Window.CODEC.forGetter(Revive::window),
                 field(Codec.intRange(-1, Integer.MAX_VALUE), "uses", 3).forGetter(Revive::uses),
-                field(Codec.intRange(0, 86400), "invulnerabilitySeconds", 5).forGetter(Revive::invulnerabilitySeconds),
                 field(Effect.CODEC.listOf(), "effects", List.<Effect>of()).forGetter(Revive::effects)
         ).apply(instance, Revive::new));
 
         public Revive {
             effects = List.copyOf(effects);
         }
+    }
+
+    public record RespawnProtection(Window window, int durationSeconds) {
+        public static final RespawnProtection DEFAULT = new RespawnProtection(Window.DISABLED, 5);
+        public static final Codec<RespawnProtection> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Window.CODEC.forGetter(RespawnProtection::window),
+                field(Codec.intRange(0, 86400), "durationSeconds", 5).forGetter(RespawnProtection::durationSeconds)
+        ).apply(instance, RespawnProtection::new));
     }
 
     public record Pvp(Window window, boolean removeOnAttack) {
@@ -167,10 +174,11 @@ public final class ProtectionRules {
     }
 
     public record Profile(Inventory inventory, Experience experience, Window score, Revive revive,
-                          Effects effects, Pvp pvp, Reduction damageReduction, MobRange mobRange) {
+                          Effects effects, Pvp pvp, Reduction damageReduction, MobRange mobRange,
+                          RespawnProtection respawnProtection) {
         public static final Profile DEFAULT = new Profile(Inventory.DEFAULT, Experience.DEFAULT,
                 new Window(120, Cancellation.NONE), Revive.DEFAULT, Effects.DEFAULT, Pvp.DEFAULT,
-                Reduction.DEFAULT, MobRange.DEFAULT);
+                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT);
         public static final Codec<Profile> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 field(Inventory.CODEC, "inventory", Inventory.DEFAULT).forGetter(Profile::inventory),
                 field(Experience.CODEC, "experience", Experience.DEFAULT).forGetter(Profile::experience),
@@ -179,7 +187,8 @@ public final class ProtectionRules {
                 field(Effects.CODEC, "effects", Effects.DEFAULT).forGetter(Profile::effects),
                 field(Pvp.CODEC, "pvp", Pvp.DEFAULT).forGetter(Profile::pvp),
                 field(Reduction.CODEC, "damageReduction", Reduction.DEFAULT).forGetter(Profile::damageReduction),
-                field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange)
+                field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
+                field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection)
         ).apply(instance, Profile::new));
 
         public Window window(Feature feature) {
@@ -192,6 +201,7 @@ public final class ProtectionRules {
                 case PVP -> pvp.window();
                 case DAMAGE_REDUCTION -> damageReduction.window();
                 case MOB_RANGE -> mobRange.window();
+                case RESPAWN_PROTECTION -> respawnProtection.window();
             };
         }
     }

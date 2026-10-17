@@ -106,7 +106,7 @@ public final class ProtectionCommands {
         }))));
         player.then(Commands.literal("revives").then(Commands.argument("used", IntegerArgumentType.integer(0)).executes(guard(context -> {
             engine().states().setRevivesUsed(uuid(context), IntegerArgumentType.getInteger(context, "used"));
-            reply(context, "已使用的免死次数已保存，现有无敌窗口已清除。", true);
+            reply(context, "已使用的免死次数已保存。", true);
             return 1;
         }))));
         admin.then(Commands.literal("player").then(player));
@@ -239,6 +239,9 @@ public final class ProtectionCommands {
         var revive = profile.revive();
         reply(context, "免死已使用 " + engine().states().get(id).revivesUsed() + "，总次数 "
                 + (revive.uses() < 0 ? "不限" : revive.uses()), false);
+        if (player != null) {
+            reply(context, "本次重生无敌剩余 " + Math.ceil(engine().respawnInvulnerabilityTicks(player) / 20.0) + " 秒", false);
+        }
         return 1;
     }
 

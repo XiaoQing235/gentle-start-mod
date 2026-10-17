@@ -4,7 +4,8 @@ import java.util.Arrays;
 
 public enum Feature {
     INVENTORY("inventory"), EXPERIENCE("experience"), SCORE("score"), REVIVE("revive"),
-    EFFECTS("effects"), PVP("pvp"), DAMAGE_REDUCTION("damageReduction"), MOB_RANGE("mobRange");
+    EFFECTS("effects"), PVP("pvp"), DAMAGE_REDUCTION("damageReduction"), MOB_RANGE("mobRange"),
+    RESPAWN_PROTECTION("respawnProtection");
 
     private final String id;
 

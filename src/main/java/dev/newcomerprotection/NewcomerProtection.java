@@ -51,7 +51,12 @@ public final class NewcomerProtection implements DedicatedServerModInitializer {
                 ((DeathProtection) oldPlayer).newcomerProtection$death().restore(oldPlayer, newPlayer);
             }
         });
-        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> engine.refreshEffects(newPlayer));
+        ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            engine.refreshEffects(newPlayer);
+            if (!alive) {
+                engine.protectRespawn(newPlayer);
+            }
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 engine.checkConditions(player);

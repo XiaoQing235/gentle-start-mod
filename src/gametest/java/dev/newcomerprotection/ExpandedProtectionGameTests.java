@@ -39,7 +39,7 @@ public class ExpandedProtectionGameTests {
         return JsonParser.parseString(text).getAsJsonObject();
     }
 
-    private static ProtectionConfig settings(String rules) {
+    static ProtectionConfig settings(String rules) {
         JsonObject root = ProtectionConfig.defaults().document();
         for (Feature feature : Feature.values()) {
             root.getAsJsonObject("defaults").getAsJsonObject(feature.id()).addProperty("minutes", 0);
@@ -143,7 +143,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void directReviveRunsAfterTotemsAndConsumesFiniteCharges(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":0,"
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,"
                 + "\"effects\":[{\"id\":\"minecraft:fire_resistance\",\"durationSeconds\":8}]}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TOTEM_OF_UNDYING));
@@ -157,7 +157,8 @@ public class ExpandedProtectionGameTests {
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
             test.assertTrue(player.isAlive(), "Mod prevents actual death");
             test.assertValueEqual(player.position(), position, "Direct revive stays at the same location");
-            test.assertValueEqual(player.getHealth(), player.getMaxHealth(), "Health restored");
+            test.assertValueEqual(player.getHealth(), 10.0F, "Direct revive restores ten health");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "Revive does not grant immunity by itself");
             test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 1, "Exactly one charge consumed");
             test.assertTrue(player.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE), "Revive effect applied");
             player.invulnerableTime = 0;
@@ -172,7 +173,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest(maxTicks = 80)
     public void reviveInvulnerabilityExpires(GameTestHelper test) {
-        ProtectionConfig config = settings("{\"revive\":{\"minutes\":-1,\"uses\":2,\"invulnerabilitySeconds\":1}}");
+        ProtectionConfig config = settings("{\"revive\":{\"minutes\":-1,\"uses\":2},"
+                + "\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":1}}");
         ServerPlayer[] saved = new ServerPlayer[1];
         withConfig(test, config, () -> {
             ServerPlayer player = player(test, 0);

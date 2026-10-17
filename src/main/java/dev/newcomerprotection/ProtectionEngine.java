@@ -240,7 +240,7 @@ public final class ProtectionEngine {
                     return false;
                 }
             }
-            if (states.get(victim.getUUID()).invulnerableUntil() > server.overworld().getGameTime()) {
+            if (respawnInvulnerabilityTicks(victim) > 0) {
                 return false;
             }
             return !active(victim, Feature.DAMAGE_REDUCTION) || profile(victim).damageReduction().reduction() < 1;
@@ -262,15 +262,28 @@ public final class ProtectionEngine {
         if (revive.uses() == 0 || revive.uses() > 0 && used >= revive.uses()) {
             return false;
         }
-        states.revive(player.getUUID(), server.overworld().getGameTime() + revive.invulnerabilitySeconds() * 20L);
-        player.setHealth(player.getMaxHealth());
+        states.revive(player.getUUID());
+        player.setHealth(10.0F);
         player.clearFire();
         player.setTicksFrozen(0);
         player.resetFallDistance();
         applyEffects(player, revive.effects());
+        protectRespawn(player);
         player.sendSystemMessage(Component.literal("[新人保护] 已原地免死，剩余次数："
                 + (revive.uses() < 0 ? "不限" : revive.uses() - used - 1)));
         return true;
+    }
+
+    public void protectRespawn(ServerPlayer player) {
+        if (active(player, Feature.RESPAWN_PROTECTION)) {
+            states.protectRespawn(player.getUUID(), server.overworld().getGameTime()
+                    + profile(player).respawnProtection().durationSeconds() * 20L);
+        }
+    }
+
+    public long respawnInvulnerabilityTicks(ServerPlayer player) {
+        return active(player, Feature.RESPAWN_PROTECTION)
+                ? Math.max(0, states.get(player.getUUID()).invulnerableUntil() - server.overworld().getGameTime()) : 0;
     }
 
     public boolean withinMobRange(LivingEntity mob, ServerPlayer player, double originalRange) {

@@ -6,7 +6,8 @@
   "entrypoints": {
     "fabric-gametest": [
       "dev.newcomerprotection.ProtectionGameTests",
-      "dev.newcomerprotection.ExpandedProtectionGameTests"
+      "dev.newcomerprotection.ExpandedProtectionGameTests",
+      "dev.newcomerprotection.RecoveryProtectionGameTests"
     ]
   }
 }

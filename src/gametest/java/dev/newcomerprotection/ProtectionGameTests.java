@@ -310,7 +310,11 @@ public class ProtectionGameTests {
     }
 
     static ServerPlayer respawn(ServerPlayer player) {
-        return player.level().getServer().getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
+        player.connection.player = player;
+        new net.minecraft.network.protocol.game.ServerboundClientCommandPacket(
+                net.minecraft.network.protocol.game.ServerboundClientCommandPacket.Action.PERFORM_RESPAWN).handle(player.connection);
+        new ServerboundPlayerLoadedPacket().handle(player.connection);
+        return player.connection.player;
     }
 
     static int drops(ServerPlayer player) {

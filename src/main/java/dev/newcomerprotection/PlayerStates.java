@@ -72,6 +72,9 @@ public final class PlayerStates {
 
     public void cancel(UUID id, Feature feature, String reason) {
         if (get(id).cancelled.putIfAbsent(feature, reason) == null) {
+            if (feature == Feature.RESPAWN_PROTECTION) {
+                get(id).invulnerableUntil = 0;
+            }
             save();
         }
     }
@@ -80,10 +83,14 @@ public final class PlayerStates {
         return get(id).observed.add(condition);
     }
 
-    public void revive(UUID id, long invulnerableUntil) {
+    public void revive(UUID id) {
         State state = get(id);
         state.revivesUsed = Math.addExact(state.revivesUsed, 1);
-        state.invulnerableUntil = invulnerableUntil;
+        save();
+    }
+
+    public void protectRespawn(UUID id, long invulnerableUntil) {
+        get(id).invulnerableUntil = invulnerableUntil;
         save();
     }
 
@@ -97,6 +104,8 @@ public final class PlayerStates {
             state.observed.removeIf(condition -> condition.startsWith(feature.id() + ":"));
             if (feature == Feature.REVIVE) {
                 state.revivesUsed = 0;
+            }
+            if (feature == Feature.RESPAWN_PROTECTION) {
                 state.invulnerableUntil = 0;
             }
         }
@@ -108,7 +117,6 @@ public final class PlayerStates {
             throw new IllegalArgumentException("Used revives cannot be negative");
         }
         get(id).revivesUsed = used;
-        get(id).invulnerableUntil = 0;
         save();
     }
 
