@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -62,7 +62,7 @@ public final class PlayerStates {
                 players.put(id, state);
             }
         } catch (IOException | RuntimeException exception) {
-            throw new IllegalStateException("Cannot load newcomer protection player state", exception);
+            throw new IllegalStateException("Cannot load Gentle Start player state", exception);
         }
     }
 

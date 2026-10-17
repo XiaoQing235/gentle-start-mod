@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
@@ -26,18 +26,18 @@ import net.minecraft.server.level.ServerPlayer;
 
 public final class ProtectionCommands {
     private static final DynamicCommandExceptionType ERROR = new DynamicCommandExceptionType(message ->
-            Component.literal("[新人保护] " + message));
+            Component.literal("[Gentle Start] " + message));
 
     private ProtectionCommands() {
     }
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        var root = Commands.literal("newcomer").executes(guard(context -> status(context,
+        var root = Commands.literal("gentlestart").executes(guard(context -> status(context,
                 context.getSource().getPlayerOrException().getUUID())));
         root.then(Commands.literal("status").executes(guard(context -> status(context,
                 context.getSource().getPlayerOrException().getUUID()))));
         root.then(Commands.literal("help").executes(context -> {
-            reply(context, "/newcomer status 查看个人保护；管理员使用 /newcomer admin，并按 Tab 补全。", false);
+            reply(context, "/gentlestart status 查看个人保护；管理员使用 /gentlestart admin，并按 Tab 补全。", false);
             return 1;
         }));
         var admin = Commands.literal("admin").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
@@ -133,14 +133,14 @@ public final class ProtectionCommands {
     }
 
     private static ProtectionEngine engine() {
-        return NewcomerProtection.engine();
+        return GentleStart.engine();
     }
 
     private static int adminHelp(CommandContext<CommandSourceStack> context) {
         for (String command : List.of("lookup <玩家名或选择器>", "list [页码]", "enabled <true|false>", "reload",
                 "defaults set <功能> <分钟>", "defaults rule <功能> <JSON对象>",
                 "player <UUID> [show|set|grant|rule|clear|cancel|reset|revives]", "copy <源UUID> <目标UUID>")) {
-            reply(context, "/newcomer admin " + command, false);
+            reply(context, "/gentlestart admin " + command, false);
         }
         return 1;
     }
@@ -263,6 +263,6 @@ public final class ProtectionCommands {
     }
 
     private static void reply(CommandContext<CommandSourceStack> context, String message, boolean notifyAdmins) {
-        context.getSource().sendSuccess(() -> Component.literal("[新人保护] " + message), notifyAdmins);
+        context.getSource().sendSuccess(() -> Component.literal("[Gentle Start] " + message), notifyAdmins);
     }
 }

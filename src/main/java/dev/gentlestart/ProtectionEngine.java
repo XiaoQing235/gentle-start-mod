@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -192,7 +192,7 @@ public final class ProtectionEngine {
         if (triggered) {
             states.cancel(id, feature, "auto: " + String.join(", ", required.stream()
                     .filter(condition -> observed.contains(feature.id() + ":" + condition)).toList()));
-            player.sendSystemMessage(Component.literal("[新人保护] " + feature.id() + " 已因达到取消条件而结束。"));
+            player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.id() + " 已因达到取消条件而结束。"));
         } else if (changed) {
             states.save();
         }
@@ -231,7 +231,7 @@ public final class ProtectionEngine {
                 if (active(attacker, Feature.PVP)) {
                     if (profile(attacker).pvp().removeOnAttack()) {
                         states.cancel(attacker.getUUID(), Feature.PVP, "offensive player damage");
-                        attacker.sendSystemMessage(Component.literal("[新人保护] 主动攻击已解除你的 PvP 保护。"));
+                        attacker.sendSystemMessage(Component.literal("[Gentle Start] 主动攻击已解除你的 PvP 保护。"));
                     } else {
                         return false;
                     }
@@ -269,7 +269,7 @@ public final class ProtectionEngine {
         player.resetFallDistance();
         applyEffects(player, revive.effects());
         protectRespawn(player);
-        player.sendSystemMessage(Component.literal("[新人保护] 已原地免死，剩余次数："
+        player.sendSystemMessage(Component.literal("[Gentle Start] 已原地免死，剩余次数："
                 + (revive.uses() < 0 ? "不限" : revive.uses() - used - 1)));
         return true;
     }

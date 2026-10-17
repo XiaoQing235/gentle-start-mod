@@ -1,6 +1,6 @@
-package dev.newcomerprotection.mixin;
+package dev.gentlestart.mixin;
 
-import dev.newcomerprotection.NewcomerProtection;
+import dev.gentlestart.GentleStart;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -18,12 +18,12 @@ abstract class InventoryMixin {
     public Player player;
 
     @Inject(method = "setItem", at = @At("RETURN"))
-    private void newcomerProtection$observeSet(int slot, ItemStack stack, CallbackInfo callback) {
-        NewcomerProtection.checkConditions(player);
+    private void gentleStart$observeSet(int slot, ItemStack stack, CallbackInfo callback) {
+        GentleStart.checkConditions(player);
     }
 
     @Inject(method = "add(ILnet/minecraft/world/item/ItemStack;)Z", at = @At("RETURN"))
-    private void newcomerProtection$observeAdd(int slot, ItemStack stack, CallbackInfoReturnable<Boolean> callback) {
-        NewcomerProtection.checkConditions(player);
+    private void gentleStart$observeAdd(int slot, ItemStack stack, CallbackInfoReturnable<Boolean> callback) {
+        GentleStart.checkConditions(player);
     }
 }

@@ -1,9 +1,9 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
-import static dev.newcomerprotection.ExpandedProtectionGameTests.settings;
-import static dev.newcomerprotection.ProtectionGameTests.player;
-import static dev.newcomerprotection.ProtectionGameTests.respawn;
-import static dev.newcomerprotection.ProtectionGameTests.withConfig;
+import static dev.gentlestart.ExpandedProtectionGameTests.settings;
+import static dev.gentlestart.ProtectionGameTests.player;
+import static dev.gentlestart.ProtectionGameTests.respawn;
+import static dev.gentlestart.ProtectionGameTests.withConfig;
 
 import java.util.List;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -21,11 +21,11 @@ import net.minecraft.world.phys.Vec3;
 
 public class DeathDropGameTests {
     private static ProtectionEngine engine() {
-        return NewcomerProtection.engine();
+        return GentleStart.engine();
     }
 
     private static boolean protectedDrop(ItemEntity item) {
-        return ((DeathDropProtection) item).newcomerProtection$isProtected();
+        return ((DeathDropProtection) item).gentleStart$isProtected();
     }
 
     private static List<ItemEntity> drops(GameTestHelper test) {
@@ -38,6 +38,24 @@ public class DeathDropGameTests {
         player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
         player.kill(test.getLevel());
         return drops(test).stream().filter(DeathDropGameTests::protectedDrop).findFirst().orElseThrow();
+    }
+
+    @GameTest
+    public void previousNamespaceDropMarkerStillLoads(GameTestHelper test) {
+        ItemEntity item = new ItemEntity(test.getLevel(), 0, 2, 0, new ItemStack(Items.DIAMOND));
+        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+        item.saveWithoutId(output);
+        var tag = output.buildResult();
+        tag.remove("gentle-start-mod:death_drop");
+        tag.putBoolean("newcomer-protection:death_drop", true);
+        tag.putShort("Age", (short)-1234);
+        item.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+        test.assertTrue(protectedDrop(item), "Old drop marker remains protected");
+        test.assertValueEqual(item.getAge(), -1234, "Migration does not refresh lifetime");
+        tag.putBoolean("gentle-start-mod:death_drop", false);
+        item.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+        test.assertFalse(protectedDrop(item), "New marker takes precedence");
+        test.succeed();
     }
 
     @GameTest
@@ -188,7 +206,7 @@ public class DeathDropGameTests {
                     player.getGameProfile(), player.clientInformation());
             reloaded.connection = player.connection;
             reloaded.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), output.buildResult()));
-            test.assertTrue(((DeathProtection) reloaded).newcomerProtection$protectDrops(), "Pending death drop decision survives player save/load");
+            test.assertTrue(((DeathProtection) reloaded).gentleStart$protectDrops(), "Pending death drop decision survives player save/load");
             engine().replaceConfig(settings("{}"));
             respawn(player);
             var carried = drops(test).stream().filter(item -> item.getItem().is(Items.DIAMOND)).findFirst().orElseThrow();

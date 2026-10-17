@@ -1,4 +1,8 @@
-# Newcomer Protection
+# Gentle Start
+
+项目与 Mod ID：`gentle-start-mod`。命令入口：`/gentlestart`。
+
+从 Newcomer Protection 升级时，请先停止服务器并移除旧版 Jar，再安装 Gentle Start，不要同时加载两个版本。首次启动时，若新文件不存在，会将 `config/newcomer-protection.json` 和世界的 `data/newcomer-protection-state.json` 分别复制到同目录的 `gentle-start-mod.json`、`gentle-start-mod-state.json`；旧文件保留作备份，新文件已存在时以新文件为准。后续只编辑新文件，并将命令脚本中的 `/newcomer` 更新为 `/gentlestart`。已有玩家死亡快照和掉落物保护标记仍可读取，后续保存使用新命名空间。
 
 Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置新人保护，原版客户端即可加入。
 
@@ -23,7 +27,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 ## 安装和配置
 
-将 `build/libs/newcomer-protection-0.3.0-SNAPSHOT.jar` 与对应 Fabric API 放入 Fabric 26.2 服务端的 `mods/`。首次启动生成 `config/newcomer-protection.json`。编辑后使用 `/newcomer admin reload` 生效；新配置验证失败时继续使用旧配置，错误文件保留供修正。
+将 `build/libs/gentle-start-mod-0.3.0-SNAPSHOT.jar` 与对应 Fabric API 放入 Fabric 26.2 服务端的 `mods/`。首次启动生成 `config/gentle-start-mod.json`。编辑后使用 `/gentlestart admin reload` 生效；新配置验证失败时继续使用旧配置，错误文件保留供修正。
 
 `defaults` 是所有玩家的默认规则；`players` 按 UUID 覆盖。未填写的字段逐层继承，列表整体替换。以下为展示各项功能的配置示例，其中主动启用了出厂配置中关闭的功能；示例 UUID 需替换为目标玩家 UUID：
 
@@ -129,7 +133,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 窗口内免疫全部普通伤害，包括非致命伤害、近战、投射物、摔落、火焰、岩浆、饥饿和魔法伤害。原版 `BYPASSES_INVULNERABILITY` 标签的伤害继续绕过，包括 `/kill` 和虚空。无敌不依赖剩余免死次数，也不会额外消耗次数。
 
-窗口按服务器 tick 计时，截止点随 UUID 保存；玩家下线不会暂停服务器时间，也不会因重连刷新。资格到期或全局禁用后不生效；自动或管理员取消 `respawnProtection` 会清除窗口，重置该项也会清除窗口，但保留免死次数。`/newcomer status` 会显示当前窗口剩余秒数。无敌期间仍遵守 PvP 主动攻击解除规则。
+窗口按服务器 tick 计时，截止点随 UUID 保存；玩家下线不会暂停服务器时间，也不会因重连刷新。资格到期或全局禁用后不生效；自动或管理员取消 `respawnProtection` 会清除窗口，重置该项也会清除窗口，但保留免死次数。`/gentlestart status` 会显示当前窗口剩余秒数。无敌期间仍遵守 PvP 主动攻击解除规则。
 
 ### 死亡掉落保护
 
@@ -166,15 +170,15 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 - 物品被丢弃、经验下降、进度被撤销均不会重新获得保护。管理员可以显式重置，但当前仍满足的条件会再次触发。
 - 从背包写入、原版库存进度触发点、等级/进度变化及每 tick 检查观测条件。配置生效时已持有的物品也算获得；无法追溯安装前已经获得又丢弃的物品，绕过这些接口且在同一 tick 内移除物品的第三方实现也可能无法观测。
 
-运行状态保存在世界的 `data/newcomer-protection-state.json`，包含各 UUID 的取消原因、条件历史、免死次数和无敌截止点。不要在运行中手工修改该文件；使用管理命令。
+运行状态保存在世界的 `data/gentle-start-mod-state.json`，包含各 UUID 的取消原因、条件历史、免死次数和无敌截止点。不要在运行中手工修改该文件；使用管理命令。
 
 ## 命令
 
-所有玩家可使用 `/newcomer status` 查看个人状态，`/newcomer help` 查看入口。
+所有玩家可使用 `/gentlestart status` 查看个人状态，`/gentlestart help` 查看入口。
 
 管理员命令要求原版 GAMEMASTERS 权限（通常为 OP 2 级），支持服务器控制台。UUID 参数既支持在线也支持从未加入的离线 UUID；可先通过 `lookup` 获取已知玩家的 UUID。所有配置修改均先校验、再保存并生效。
 
-| 命令（均以 `/newcomer admin` 开头） | 含义 |
+| 命令（均以 `/gentlestart admin` 开头） | 含义 |
 | --- | --- |
 | `help` | 列出管理入口；命令与功能名支持 Tab 补全，UUID 提供在线及已配置候选 |
 | `lookup <玩家名或选择器>` | 查询玩家名对应 UUID；离线模式未知名字的解析遵循原版规则，应优先使用已知玩家或准确 UUID |
@@ -200,13 +204,13 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 示例：
 
 ```text
-/newcomer admin defaults set pvp 120
-/newcomer admin player 00000000-0000-0000-0000-000000000001 set inventory -1
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule experience {"minutes":60,"ratio":0.5}
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"health":8,"effects":[{"id":"minecraft:fire_resistance","durationSeconds":10}]}
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule respawnProtection {"minutes":120,"durationSeconds":3}
-/newcomer admin player 00000000-0000-0000-0000-000000000001 set deathDrops -1
-/newcomer admin player 00000000-0000-0000-0000-000000000001 rule inventory {"cancel":{"experienceLevel":30}}
+/gentlestart admin defaults set pvp 120
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 set inventory -1
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 rule experience {"minutes":60,"ratio":0.5}
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 rule revive {"minutes":120,"uses":5,"health":8,"effects":[{"id":"minecraft:fire_resistance","durationSeconds":10}]}
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 rule respawnProtection {"minutes":120,"durationSeconds":3}
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 set deathDrops -1
+/gentlestart admin player 00000000-0000-0000-0000-000000000001 rule inventory {"cancel":{"experienceLevel":30}}
 ```
 ## 开发环境
 

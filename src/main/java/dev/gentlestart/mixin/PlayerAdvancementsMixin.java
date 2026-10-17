@@ -1,6 +1,6 @@
-package dev.newcomerprotection.mixin;
+package dev.gentlestart.mixin;
 
-import dev.newcomerprotection.NewcomerProtection;
+import dev.gentlestart.GentleStart;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,7 +16,7 @@ abstract class PlayerAdvancementsMixin {
     private ServerPlayer player;
 
     @Inject(method = "award", at = @At("RETURN"))
-    private void newcomerProtection$observeAdvancement(AdvancementHolder holder, String criterion, CallbackInfoReturnable<Boolean> callback) {
-        NewcomerProtection.checkConditions(player);
+    private void gentleStart$observeAdvancement(AdvancementHolder holder, String criterion, CallbackInfoReturnable<Boolean> callback) {
+        GentleStart.checkConditions(player);
     }
 }

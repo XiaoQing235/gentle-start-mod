@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import net.fabricmc.api.DedicatedServerModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -15,8 +15,8 @@ import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public final class NewcomerProtection implements DedicatedServerModInitializer {
-    private static final Logger LOGGER = LoggerFactory.getLogger("newcomer-protection");
+public final class GentleStart implements DedicatedServerModInitializer {
+    private static final Logger LOGGER = LoggerFactory.getLogger("gentle-start-mod");
     private static ProtectionEngine engine;
 
     public static ProtectionEngine engine() {
@@ -34,9 +34,11 @@ public final class NewcomerProtection implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             engine = new ProtectionEngine(server,
-                    FabricLoader.getInstance().getConfigDir().resolve("newcomer-protection.json"),
-                    server.getWorldPath(LevelResource.ROOT).resolve("data/newcomer-protection-state.json"));
-            LOGGER.info("Newcomer Protection loaded with {} UUID overrides", engine.config().configuredPlayers().size());
+                    JsonFiles.renamed(FabricLoader.getInstance().getConfigDir().resolve("gentle-start-mod.json"),
+                            "newcomer-protection.json"),
+                    JsonFiles.renamed(server.getWorldPath(LevelResource.ROOT).resolve("data/gentle-start-mod-state.json"),
+                            "newcomer-protection-state.json"));
+            LOGGER.info("Gentle Start loaded with {} UUID overrides", engine.config().configuredPlayers().size());
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> engine.states().save());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> engine = null);
@@ -48,7 +50,7 @@ public final class NewcomerProtection implements DedicatedServerModInitializer {
         });
         ServerPlayerEvents.COPY_FROM.register((oldPlayer, newPlayer, alive) -> {
             if (!alive && !newPlayer.level().getGameRules().get(GameRules.KEEP_INVENTORY) && !oldPlayer.isSpectator()) {
-                ((DeathProtection) oldPlayer).newcomerProtection$death().restore(oldPlayer, newPlayer);
+                ((DeathProtection) oldPlayer).gentleStart$death().restore(oldPlayer, newPlayer);
             }
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {

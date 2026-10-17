@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
@@ -33,7 +33,7 @@ public record DeathSnapshot(List<Integer> slots, double experienceRatio, boolean
 
     public static DeathSnapshot capture(ServerPlayer player, boolean inventory, double ratio, boolean score) {
         List<Integer> slots = new ArrayList<>();
-        ProtectionRules.Selection selection = NewcomerProtection.engine().profile(player).inventory().keep();
+        ProtectionRules.Selection selection = GentleStart.engine().profile(player).inventory().keep();
         if (inventory) {
             player.closeContainer();
             for (int slot = 0; slot < player.getInventory().getContainerSize(); slot++) {

@@ -1,6 +1,6 @@
-package dev.newcomerprotection.mixin;
+package dev.gentlestart.mixin;
 
-import dev.newcomerprotection.DeathDropProtection;
+import dev.gentlestart.DeathDropProtection;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
@@ -17,49 +17,50 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(ItemEntity.class)
 abstract class ItemEntityMixin implements DeathDropProtection {
     @Unique
-    private boolean newcomerProtection$protected;
+    private boolean gentleStart$protected;
 
     @Override
-    public void newcomerProtection$protect() {
-        newcomerProtection$protected = true;
+    public void gentleStart$protect() {
+        gentleStart$protected = true;
         ((ItemEntity) (Object) this).setExtendedLifetime();
     }
 
     @Override
-    public boolean newcomerProtection$isProtected() {
-        return newcomerProtection$protected;
+    public boolean gentleStart$isProtected() {
+        return gentleStart$protected;
     }
 
     @Inject(method = "isMergable", at = @At("HEAD"), cancellable = true)
-    private void newcomerProtection$disableMerge(CallbackInfoReturnable<Boolean> callback) {
-        if (newcomerProtection$protected) {
+    private void gentleStart$disableMerge(CallbackInfoReturnable<Boolean> callback) {
+        if (gentleStart$protected) {
             callback.setReturnValue(false);
         }
     }
 
     @Inject(method = "fireImmune", at = @At("HEAD"), cancellable = true)
-    private void newcomerProtection$fireProof(CallbackInfoReturnable<Boolean> callback) {
-        if (newcomerProtection$protected) {
+    private void gentleStart$fireProof(CallbackInfoReturnable<Boolean> callback) {
+        if (gentleStart$protected) {
             callback.setReturnValue(true);
         }
     }
 
     @Inject(method = "hurtServer", at = @At("HEAD"), cancellable = true)
-    private void newcomerProtection$rejectOrdinaryDamage(ServerLevel level, DamageSource source, float amount,
+    private void gentleStart$rejectOrdinaryDamage(ServerLevel level, DamageSource source, float amount,
                                                         CallbackInfoReturnable<Boolean> callback) {
-        if (newcomerProtection$protected && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
+        if (gentleStart$protected && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) {
             callback.setReturnValue(false);
         }
     }
 
     @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
-    private void newcomerProtection$save(ValueOutput output, CallbackInfo callback) {
-        output.putBoolean("newcomer-protection:death_drop", newcomerProtection$protected);
+    private void gentleStart$save(ValueOutput output, CallbackInfo callback) {
+        output.putBoolean("gentle-start-mod:death_drop", gentleStart$protected);
     }
 
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
-    private void newcomerProtection$load(ValueInput input, CallbackInfo callback) {
+    private void gentleStart$load(ValueInput input, CallbackInfo callback) {
         // Restore only the marker. The saved vanilla Age must keep counting from its previous value.
-        newcomerProtection$protected = input.getBooleanOr("newcomer-protection:death_drop", false);
+        gentleStart$protected = input.getBooleanOr("gentle-start-mod:death_drop",
+                input.getBooleanOr("newcomer-protection:death_drop", false));
     }
 }

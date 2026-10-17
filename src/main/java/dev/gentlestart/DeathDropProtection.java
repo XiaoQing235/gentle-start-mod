@@ -1,8 +1,8 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 /** Protection attached to the dropped entity, independently of its item stack. */
 public interface DeathDropProtection {
-    void newcomerProtection$protect();
+    void gentleStart$protect();
 
-    boolean newcomerProtection$isProtected();
+    boolean gentleStart$isProtected();
 }

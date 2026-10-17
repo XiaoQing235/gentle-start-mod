@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "dev.newcomerprotection.mixin",
+  "package": "dev.gentlestart.mixin",
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "PlayerMixin",

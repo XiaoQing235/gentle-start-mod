@@ -1,8 +1,8 @@
-package dev.newcomerprotection.mixin;
+package dev.gentlestart.mixin;
 
-import dev.newcomerprotection.NewcomerProtection;
-import dev.newcomerprotection.DeathProtection;
-import dev.newcomerprotection.DeathDropProtection;
+import dev.gentlestart.GentleStart;
+import dev.gentlestart.DeathProtection;
+import dev.gentlestart.DeathDropProtection;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
@@ -18,17 +18,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(LivingEntity.class)
 abstract class LivingEntityMixin {
     @Inject(method = "createItemStackToDrop", at = @At("RETURN"))
-    private void newcomerProtection$protectDeathDrop(ItemStack stack, boolean randomly, boolean thrownFromHand,
+    private void gentleStart$protectDeathDrop(ItemStack stack, boolean randomly, boolean thrownFromHand,
                                                     CallbackInfoReturnable<ItemEntity> callback) {
-        if ((Object) this instanceof DeathProtection death && death.newcomerProtection$protectDrops()
+        if ((Object) this instanceof DeathProtection death && death.gentleStart$protectDrops()
                 && callback.getReturnValue() != null) {
-            ((DeathDropProtection) callback.getReturnValue()).newcomerProtection$protect();
+            ((DeathDropProtection) callback.getReturnValue()).gentleStart$protect();
         }
     }
 
     @ModifyVariable(method = "hurtServer", at = @At("HEAD"), argsOnly = true, ordinal = 0)
-    private float newcomerProtection$scaleDamage(float damage, ServerLevel level, DamageSource source, float original) {
+    private float gentleStart$scaleDamage(float damage, ServerLevel level, DamageSource source, float original) {
         return (Object) this instanceof ServerPlayer player
-                ? NewcomerProtection.engine().scaleDamage(player, source, damage) : damage;
+                ? GentleStart.engine().scaleDamage(player, source, damage) : damage;
     }
 }

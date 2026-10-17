@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
@@ -37,6 +37,58 @@ import net.minecraft.world.phys.AABB;
 
 public class ProtectionGameTests {
     @GameTest
+    public void renamedFilesPreserveExistingData(GameTestHelper test) throws Exception {
+        Path directory = Files.createTempDirectory("gentle-start-rename-");
+        try {
+            for (String suffix : List.of(".json", "-state.json")) {
+                Path oldFile = directory.resolve("newcomer-protection" + suffix);
+                Path newFile = directory.resolve("gentle-start-mod" + suffix);
+                Files.writeString(oldFile, "{\"version\":3}");
+                test.assertValueEqual(JsonFiles.renamed(newFile, oldFile.getFileName().toString()), newFile,
+                        "The new filename is authoritative");
+                test.assertValueEqual(Files.readString(newFile), Files.readString(oldFile), "Migration preserves data");
+                Files.writeString(newFile, "{\"version\":4}");
+                JsonFiles.renamed(newFile, oldFile.getFileName().toString());
+                test.assertValueEqual(Files.readString(newFile), "{\"version\":4}", "Existing new data is never overwritten");
+                Files.delete(newFile);
+                Files.delete(oldFile);
+                JsonFiles.renamed(newFile, oldFile.getFileName().toString());
+                test.assertFalse(Files.exists(newFile), "Fresh installs use normal initialization");
+            }
+        } finally {
+            try (var files = Files.list(directory)) {
+                for (Path file : files.toList()) {
+                    Files.delete(file);
+                }
+            }
+            Files.delete(directory);
+        }
+        test.succeed();
+    }
+
+    @GameTest
+    public void previousNamespaceDeathSnapshotStillRestores(GameTestHelper test) {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
+            ServerPlayer player = player(test, 0);
+            player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 9));
+            player.kill(test.getLevel());
+            TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING,
+                    test.getLevel().registryAccess());
+            player.saveWithoutId(output);
+            var tag = output.buildResult();
+            tag.put("newcomer-protection:death", tag.get("gentle-start-mod:death"));
+            tag.remove("gentle-start-mod:death");
+            tag.putBoolean("newcomer-protection:protect_death_drops", true);
+            tag.remove("gentle-start-mod:protect_death_drops");
+            player.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+            test.assertTrue(((DeathProtection) player).gentleStart$protectDrops(), "Old pending drop protection survives");
+            ServerPlayer restored = respawn(player);
+            test.assertValueEqual(restored.getInventory().getItem(0).getCount(), 9, "Old death snapshot restores inventory");
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void protectedDeathKeepsFullInventoryAndExperience(GameTestHelper test) {
         withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
@@ -64,7 +116,7 @@ public class ProtectionGameTests {
             }
             test.assertValueEqual(respawned.getInventory().getSelectedSlot(), 2, "Selected slot survives");
             assertExperience(test, respawned);
-            test.assertFalse(((DeathProtection) respawned).newcomerProtection$keepInventory(),
+            test.assertFalse(((DeathProtection) respawned).gentleStart$keepInventory(),
                     "A new life must not inherit the previous death decision");
             test.assertFalse(test.getLevel().getGameRules().get(GameRules.KEEP_INVENTORY),
                     "Personal protection must not change the global rule");
@@ -108,11 +160,11 @@ public class ProtectionGameTests {
             ServerPlayer reconnected = new ServerPlayer(test.getLevel().getServer(), test.getLevel(),
                     player.getGameProfile(), player.clientInformation());
             reconnected.connection = player.connection;
-            test.assertFalse(((DeathProtection) reconnected).newcomerProtection$keepInventory(),
+            test.assertFalse(((DeathProtection) reconnected).gentleStart$keepInventory(),
                     "A fresh player starts without the previous in-memory decision");
             reconnected.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(),
                     output.buildResult()));
-            test.assertFalse(NewcomerProtection.engine().active(reconnected, Feature.INVENTORY), "Time has crossed the threshold");
+            test.assertFalse(GentleStart.engine().active(reconnected, Feature.INVENTORY), "Time has crossed the threshold");
             ServerPlayer respawned = respawn(reconnected);
             test.assertValueEqual(respawned.getInventory().getItem(0).getCount(), 9, "Saved death keeps items");
             assertExperience(test, respawned);
@@ -174,18 +226,18 @@ public class ProtectionGameTests {
         withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
             player.removeAllEffects();
-            NewcomerProtection.engine().refreshEffects(player);
+            GentleStart.engine().refreshEffects(player);
             test.assertTrue(player.hasEffect(MobEffects.NIGHT_VISION), "Configured effect applied");
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getAmplifier(), 0, "Level 1 maps to amplifier 0");
             player.removeAllEffects(); // Milk clears the effect until the next refresh.
-            NewcomerProtection.engine().refreshEffects(player);
+            GentleStart.engine().refreshEffects(player);
             test.assertTrue(player.hasEffect(MobEffects.NIGHT_VISION), "Effects return after milk");
             player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 2400, 2));
-            NewcomerProtection.engine().refreshEffects(player);
+            GentleStart.engine().refreshEffects(player);
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getAmplifier(), 2, "Stronger potion stays active");
             player.getStats().setValue(player, Stats.CUSTOM.get(Stats.PLAY_TIME), 144000);
             player.removeEffect(MobEffects.NIGHT_VISION);
-            NewcomerProtection.engine().refreshEffects(player);
+            GentleStart.engine().refreshEffects(player);
             test.assertFalse(player.hasEffect(MobEffects.NIGHT_VISION), "No refresh at threshold");
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getDuration(), 2400, "External effect remains");
         });
@@ -226,8 +278,8 @@ public class ProtectionGameTests {
     }
     @GameTest
     public void defaultConfigIsEditableAndInvalidFilesArePreserved(GameTestHelper test) throws Exception {
-        Path directory = Files.createTempDirectory("newcomer-config-test-");
-        Path file = directory.resolve("newcomer-protection.json");
+        Path directory = Files.createTempDirectory("gentlestart-config-test-");
+        Path file = directory.resolve("gentle-start-mod.json");
         try {
             test.assertValueEqual(ProtectionConfig.load(file).document(), ProtectionConfig.defaults().document(), "Missing config uses defaults");
             String json = Files.readString(file);
@@ -331,14 +383,14 @@ public class ProtectionGameTests {
     }
 
     static void withConfig(GameTestHelper test, ProtectionConfig config, Runnable assertions) {
-        ProtectionConfig previous = NewcomerProtection.engine().config();
+        ProtectionConfig previous = GentleStart.engine().config();
         boolean keepInventory = test.getLevel().getGameRules().get(GameRules.KEEP_INVENTORY);
         try {
-            NewcomerProtection.engine().replaceConfig(config);
+            GentleStart.engine().replaceConfig(config);
             test.getLevel().getGameRules().set(GameRules.KEEP_INVENTORY, false, test.getLevel().getServer());
             assertions.run();
         } finally {
-            NewcomerProtection.engine().replaceConfig(previous);
+            GentleStart.engine().replaceConfig(previous);
             test.getLevel().getGameRules().set(GameRules.KEEP_INVENTORY, keepInventory, test.getLevel().getServer());
         }
     }

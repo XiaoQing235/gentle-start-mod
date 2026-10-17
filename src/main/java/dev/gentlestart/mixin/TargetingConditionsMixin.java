@@ -1,6 +1,6 @@
-package dev.newcomerprotection.mixin;
+package dev.gentlestart.mixin;
 
-import dev.newcomerprotection.NewcomerProtection;
+import dev.gentlestart.GentleStart;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.LivingEntity;
@@ -19,10 +19,10 @@ abstract class TargetingConditionsMixin {
     private double range;
 
     @Inject(method = "test", at = @At("HEAD"), cancellable = true)
-    private void newcomerProtection$reduceDetection(ServerLevel level, LivingEntity targeter, LivingEntity target,
+    private void gentleStart$reduceDetection(ServerLevel level, LivingEntity targeter, LivingEntity target,
                                                     CallbackInfoReturnable<Boolean> callback) {
         if (isCombat && range > 0 && targeter != null && target instanceof ServerPlayer player
-                && !NewcomerProtection.engine().withinMobRange(targeter, player, range)) {
+                && !GentleStart.engine().withinMobRange(targeter, player, range)) {
             callback.setReturnValue(false);
         }
     }

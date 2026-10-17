@@ -1,8 +1,8 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
-import static dev.newcomerprotection.ProtectionGameTests.player;
-import static dev.newcomerprotection.ProtectionGameTests.respawn;
-import static dev.newcomerprotection.ProtectionGameTests.withConfig;
+import static dev.gentlestart.ProtectionGameTests.player;
+import static dev.gentlestart.ProtectionGameTests.respawn;
+import static dev.gentlestart.ProtectionGameTests.withConfig;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -32,7 +32,7 @@ import net.minecraft.world.level.storage.LevelResource;
 
 public class ExpandedProtectionGameTests {
     private static ProtectionEngine engine() {
-        return NewcomerProtection.engine();
+        return GentleStart.engine();
     }
 
     private static JsonObject json(String text) {
@@ -165,7 +165,7 @@ public class ExpandedProtectionGameTests {
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
             test.assertTrue(player.isDeadOrDying(), "Exhausted charges allow normal death");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
-                    .resolve("data/newcomer-protection-state.json"));
+                    .resolve("data/gentle-start-mod-state.json"));
             test.assertValueEqual(reloaded.get(player.getUUID()).revivesUsed(), 1, "Charge usage persists to disk");
         });
         test.succeed();
@@ -291,7 +291,7 @@ public class ExpandedProtectionGameTests {
             player.setExperienceLevels(0);
             test.assertFalse(engine().active(player, Feature.EXPERIENCE), "Spending XP does not regain protection");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
-                    .resolve("data/newcomer-protection-state.json"));
+                    .resolve("data/gentle-start-mod-state.json"));
             test.assertTrue(reloaded.get(player.getUUID()).cancellation(Feature.INVENTORY) != null, "Cancellation persists to disk");
         });
         test.succeed();
@@ -332,26 +332,26 @@ public class ExpandedProtectionGameTests {
         withConfig(test, settings("{}"), () -> {
             UUID id = UUID.randomUUID();
             var console = test.getLevel().getServer().createCommandSourceStack();
-            execute(test, "newcomer admin player " + id + " set inventory -1", console);
-            execute(test, "newcomer admin player " + id + " rule experience {\"minutes\":30,\"ratio\":0.5}", console);
+            execute(test, "gentlestart admin player " + id + " set inventory -1", console);
+            execute(test, "gentlestart admin player " + id + " rule experience {\"minutes\":30,\"ratio\":0.5}", console);
             test.assertValueEqual(engine().config().profile(id).inventory().window().minutes(), -1.0, "Offline UUID duration saved");
             test.assertValueEqual(ProtectionConfig.load(configFile()).profile(id).experience().ratio(), 0.5, "Edited rule is on disk");
-            execute(test, "newcomer admin player " + id + " cancel inventory", console);
+            execute(test, "gentlestart admin player " + id + " cancel inventory", console);
             test.assertTrue(engine().states().get(id).cancellation(Feature.INVENTORY) != null, "Admin cancellation saved");
-            execute(test, "newcomer admin player " + id + " reset inventory", console);
+            execute(test, "gentlestart admin player " + id + " reset inventory", console);
             test.assertTrue(engine().states().get(id).cancellation(Feature.INVENTORY) == null, "Admin reset clears the chosen feature");
-            execute(test, "newcomer admin player " + id + " clear experience", console);
+            execute(test, "gentlestart admin player " + id + " clear experience", console);
             test.assertValueEqual(engine().config().profile(id).experience().window().minutes(), 0.0, "Clearing a rule resumes default inheritance");
             ServerPlayer ordinary = player(test, 0);
             boolean denied = false;
             try {
-                test.getLevel().getServer().getCommands().getDispatcher().execute("newcomer admin enabled false", ordinary.createCommandSourceStack());
+                test.getLevel().getServer().getCommands().getDispatcher().execute("gentlestart admin enabled false", ordinary.createCommandSourceStack());
             } catch (CommandSyntaxException expected) {
                 denied = true;
             }
             test.assertTrue(denied, "Ordinary players cannot invoke administrative commands");
             test.assertTrue(engine().config().enabled(), "Denied command leaves config intact");
-            execute(test, "newcomer status", ordinary.createCommandSourceStack());
+            execute(test, "gentlestart status", ordinary.createCommandSourceStack());
         });
         test.succeed();
     }
@@ -380,8 +380,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void legacyConfigurationImportsWithoutOverwritingItsFile(GameTestHelper test) throws Exception {
-        Path directory = Files.createTempDirectory("newcomer-legacy-config-");
-        Path file = directory.resolve("newcomer-protection.json");
+        Path directory = Files.createTempDirectory("gentlestart-legacy-config-");
+        Path file = directory.resolve("gentle-start-mod.json");
         String legacy = "{\"protectionSeconds\":600,\"keepInventory\":false,\"keepExperience\":true,\"effects\":[]}";
         try {
             Files.writeString(file, legacy);
@@ -405,7 +405,7 @@ public class ExpandedProtectionGameTests {
         withConfig(test, settings("{}"), () -> {
             ServerPlayer player = player(test, 12000);
             var console = test.getLevel().getServer().createCommandSourceStack();
-            String prefix = "newcomer admin player " + player.getUUID();
+            String prefix = "gentlestart admin player " + player.getUUID();
             execute(test, prefix + " grant inventory 5", console);
             test.assertValueEqual(engine().profile(player).inventory().window().minutes(), 15.0,
                     "Grant adds minutes to current playtime, rather than restarting the player's statistic");
@@ -421,9 +421,9 @@ public class ExpandedProtectionGameTests {
                 test.assertTrue(failed, "Malformed or unresolvable rule fails as a command error");
                 test.assertValueEqual(engine().config().document(), before, "Failed rule leaves current config intact");
             }
-            execute(test, "newcomer admin lookup " + player.getGameProfile().name(), console);
+            execute(test, "gentlestart admin lookup " + player.getGameProfile().name(), console);
             UUID copy = UUID.randomUUID();
-            execute(test, "newcomer admin copy " + player.getUUID() + " " + copy, console);
+            execute(test, "gentlestart admin copy " + player.getUUID() + " " + copy, console);
             test.assertValueEqual(engine().config().profile(copy), engine().profile(player), "Copy transfers the effective profile");
         });
         test.succeed();
@@ -464,7 +464,7 @@ public class ExpandedProtectionGameTests {
     }
 
     private static Path configFile() {
-        return FabricLoader.getInstance().getConfigDir().resolve("newcomer-protection.json");
+        return FabricLoader.getInstance().getConfigDir().resolve("gentle-start-mod.json");
     }
 
     private static void execute(GameTestHelper test, String command, CommandSourceStack source) {

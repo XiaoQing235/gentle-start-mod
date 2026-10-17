@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.DataResult;

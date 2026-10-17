@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "id": "newcomer-protection",
+  "id": "gentle-start-mod",
   "version": "${version}",
-  "name": "Newcomer Protection",
-  "description": "Server-only play-time based inventory, experience and status-effect protection for newcomers.",
+  "name": "Gentle Start",
+  "description": "Configurable server-side protection for a gentler start in Minecraft.",
   "environment": "server",
   "entrypoints": {
     "server": [
-      "dev.newcomerprotection.NewcomerProtection"
+      "dev.gentlestart.GentleStart"
     ]
   },
   "mixins": [
-    "newcomer-protection.mixins.json"
+    "gentle-start-mod.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.19.5",

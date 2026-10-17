@@ -12,7 +12,7 @@ loom {
 fabricApi {
     configureTests {
         createSourceSet = true
-        modId = 'newcomer-protection-test'
+        modId = 'gentle-start-mod-test'
         enableClientGameTests = false
         eula = false
     }

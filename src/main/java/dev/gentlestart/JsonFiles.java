@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -12,6 +12,18 @@ final class JsonFiles {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private JsonFiles() {
+    }
+
+    static Path renamed(Path file, String previousName) {
+        Path previous = file.resolveSibling(previousName);
+        if (!Files.exists(file) && Files.exists(previous)) {
+            try {
+                Files.copy(previous, file);
+            } catch (IOException exception) {
+                throw new IllegalStateException("Cannot migrate " + previousName, exception);
+            }
+        }
+        return file;
     }
 
     static void write(Path file, JsonElement json) {

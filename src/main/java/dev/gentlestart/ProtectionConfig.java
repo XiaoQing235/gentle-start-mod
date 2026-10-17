@@ -1,4 +1,4 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -107,7 +107,7 @@ public final class ProtectionConfig {
             boolean legacy = Set.of("protectionSeconds", "keepInventory", "keepExperience", "effects").stream().anyMatch(root::has);
             return legacy ? importVersionOne(root) : parse(importVersionTwo(root));
         } catch (IOException | RuntimeException exception) {
-            throw new IllegalStateException("Cannot load newcomer-protection.json: " + exception.getMessage(), exception);
+            throw new IllegalStateException("Cannot load gentle-start-mod.json: " + exception.getMessage(), exception);
         }
     }
 

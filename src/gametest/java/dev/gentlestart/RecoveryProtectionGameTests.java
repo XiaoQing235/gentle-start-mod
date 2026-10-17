@@ -1,9 +1,9 @@
-package dev.newcomerprotection;
+package dev.gentlestart;
 
-import static dev.newcomerprotection.ExpandedProtectionGameTests.settings;
-import static dev.newcomerprotection.ProtectionGameTests.player;
-import static dev.newcomerprotection.ProtectionGameTests.respawn;
-import static dev.newcomerprotection.ProtectionGameTests.withConfig;
+import static dev.gentlestart.ExpandedProtectionGameTests.settings;
+import static dev.gentlestart.ProtectionGameTests.player;
+import static dev.gentlestart.ProtectionGameTests.respawn;
+import static dev.gentlestart.ProtectionGameTests.withConfig;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,7 +18,7 @@ import net.minecraft.world.item.Items;
 
 public class RecoveryProtectionGameTests {
     private static ProtectionEngine engine() {
-        return NewcomerProtection.engine();
+        return GentleStart.engine();
     }
 
     @GameTest
@@ -51,7 +51,7 @@ public class RecoveryProtectionGameTests {
                 test.assertValueEqual(player.totalExperience, experience, "Experience is not lost to death");
                 test.assertValueEqual(ProtectionGameTests.drops(player), dropped, "No death item drops occur");
                 test.assertValueEqual(ProtectionGameTests.orbs(player), orbs, "No death XP drops occur");
-                test.assertValueEqual(((DeathProtection) player).newcomerProtection$death(), DeathSnapshot.NONE,
+                test.assertValueEqual(((DeathProtection) player).gentleStart$death(), DeathSnapshot.NONE,
                         "Death processing never captures a retention snapshot");
             }
         });
@@ -129,7 +129,7 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void versionTwoFileImportsSplitImmunityWithoutRewritingIt(GameTestHelper test) throws Exception {
-        Path file = Files.createTempFile("newcomer-version-two-", ".json");
+        Path file = Files.createTempFile("gentlestart-version-two-", ".json");
         UUID id = UUID.randomUUID();
         String text = "{\"defaults\":{\"revive\":{\"minutes\":120,\"uses\":2,\"invulnerabilitySeconds\":8}},"
                 + "\"players\":{\"" + id + "\":{\"revive\":{\"minutes\":-1}}}}";
