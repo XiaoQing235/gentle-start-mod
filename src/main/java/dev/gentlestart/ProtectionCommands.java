@@ -320,6 +320,7 @@ public final class ProtectionCommands {
         reply(context, "免死已使用 " + engine().states().get(id).revivesUsed() + "，总次数 "
                 + (revive.uses() < 0 ? "不限" : revive.uses()), false);
         if (player != null) {
+            reply(context, "本次免死无敌剩余 " + Math.ceil(engine().reviveInvulnerabilityTicks(player) / 20.0) + " 秒", false);
             reply(context, "本次重生无敌剩余 " + Math.ceil(engine().respawnInvulnerabilityTicks(player) / 20.0) + " 秒", false);
         }
         return 1;

@@ -22,6 +22,7 @@ public final class PlayerStates {
         private final Set<String> observed = new HashSet<>();
         private int revivesUsed;
         private long invulnerableUntil;
+        private long reviveInvulnerableUntil;
 
         public String cancellation(Feature feature) {
             return cancelled.get(feature);
@@ -33,6 +34,10 @@ public final class PlayerStates {
 
         public int revivesUsed() {
             return revivesUsed;
+        }
+
+        public long reviveInvulnerableUntil() {
+            return reviveInvulnerableUntil;
         }
 
         public long invulnerableUntil() {
@@ -56,6 +61,8 @@ public final class PlayerStates {
                 State state = new State();
                 state.revivesUsed = Codec.intRange(0, Integer.MAX_VALUE).parse(JsonOps.INSTANCE, data.get("revivesUsed")).getOrThrow();
                 state.invulnerableUntil = Codec.LONG.parse(JsonOps.INSTANCE, data.get("invulnerableUntil")).getOrThrow();
+                state.reviveInvulnerableUntil = data.has("reviveInvulnerableUntil")
+                        ? Codec.LONG.parse(JsonOps.INSTANCE, data.get("reviveInvulnerableUntil")).getOrThrow() : 0;
                 state.observed.addAll(Codec.STRING.listOf().parse(JsonOps.INSTANCE, data.get("observed")).getOrThrow());
                 data.getAsJsonObject("cancelled").entrySet().forEach(cancelled -> state.cancelled.put(
                         Feature.parse(cancelled.getKey()), Codec.STRING.parse(JsonOps.INSTANCE, cancelled.getValue()).getOrThrow()));
@@ -75,6 +82,9 @@ public final class PlayerStates {
             if (feature == Feature.RESPAWN_PROTECTION) {
                 get(id).invulnerableUntil = 0;
             }
+            if (feature == Feature.REVIVE) {
+                get(id).reviveInvulnerableUntil = 0;
+            }
             save();
         }
     }
@@ -83,15 +93,24 @@ public final class PlayerStates {
         return get(id).observed.add(condition);
     }
 
-    public void revive(UUID id) {
+    public void revive(UUID id, long invulnerableUntil) {
         State state = get(id);
         state.revivesUsed = Math.addExact(state.revivesUsed, 1);
+        state.reviveInvulnerableUntil = invulnerableUntil;
         save();
     }
 
     public void protectRespawn(UUID id, long invulnerableUntil) {
         get(id).invulnerableUntil = invulnerableUntil;
         save();
+    }
+
+    public void endReviveProtection(UUID id) {
+        State state = get(id);
+        if (state.reviveInvulnerableUntil != 0) {
+            state.reviveInvulnerableUntil = 0;
+            save();
+        }
     }
 
     public void reset(UUID id, Feature feature) {
@@ -104,6 +123,7 @@ public final class PlayerStates {
             state.observed.removeIf(condition -> condition.startsWith(feature.id() + ":"));
             if (feature == Feature.REVIVE) {
                 state.revivesUsed = 0;
+                state.reviveInvulnerableUntil = 0;
             }
             if (feature == Feature.RESPAWN_PROTECTION) {
                 state.invulnerableUntil = 0;
@@ -126,6 +146,7 @@ public final class PlayerStates {
             JsonObject data = new JsonObject();
             data.addProperty("revivesUsed", state.revivesUsed);
             data.addProperty("invulnerableUntil", state.invulnerableUntil);
+            data.addProperty("reviveInvulnerableUntil", state.reviveInvulnerableUntil);
             data.add("observed", Codec.STRING.listOf().encodeStart(JsonOps.INSTANCE, state.observed.stream().sorted().toList()).getOrThrow());
             JsonObject cancelled = new JsonObject();
             state.cancelled.forEach((feature, reason) -> cancelled.addProperty(feature.id(), reason));

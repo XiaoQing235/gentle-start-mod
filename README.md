@@ -20,7 +20,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | 经验保留 | 保留全部或指定比例的可用经验 | `keepExperience` |
 | 分数保留 | 保留死亡界面中的原版分数 | `keepScore` |
 | 原地免死 | 抵挡致命伤害，恢复指定生命值，可限制次数并附加效果 | `preventDeath` |
-| 重生无敌 | 正常死亡重生或原地免死后，短暂免疫普通伤害 | `respawnInvulnerability` |
+| 重生无敌 | 真正死亡重生后，短暂免疫普通伤害；与免死无敌独立 | `respawnInvulnerability` |
 | 掉落保护 | 延长死亡掉落的存在时间，防火、抵抗普通伤害并禁止合并 | `protectDeathDrops` |
 | 状态效果 | 在保护期间持续提供可配置的药水效果 | `protectionEffects` |
 | PvP 保护 | 阻止玩家伤害，可在主动攻击后解除保护 | `pvpProtection` |
@@ -98,14 +98,14 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 ```json
 {
-  "preventDeath": { "minutes": 60, "uses": 3, "health": 10 },
+  "preventDeath": { "minutes": 60, "uses": 3, "health": 10, "invulnerabilitySeconds": 5 },
   "protectDeathDrops": { "minutes": 120, "lifetimeSeconds": 600 },
   "damageReduction": { "minutes": 60, "reduction": 0.25 },
   "mobDetectionRange": { "minutes": 60, "multiplier": 0.5 }
 }
 ```
 
-- `preventDeath`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。免死本身不附带无敌，需要另外开启 `respawnInvulnerability`。
+- `preventDeath`：前 60 分钟最多免死 3 次，每次恢复到 10 点生命（5 颗心）。`uses: -1` 表示不限次数。`invulnerabilitySeconds` 设置每次免死后的独立无敌秒数，默认 `5`，支持 `0～86400` 的整数，`0` 不附加无敌。它与 `respawnInvulnerability.durationSeconds` 分别计时，互不授予或重置；取消/重置某项功能仅清除对应的无敌。
 - `protectDeathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
 - `damageReduction`：减免 25% 的传入伤害，在护甲和药水减伤前生效。
 - `mobDetectionRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
@@ -235,7 +235,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | `player <UUID> rule <功能> <JSON对象>` | 合并修改该 UUID 的规则 |
 | `player <UUID> clear <功能或all>` | 删除配置覆盖，恢复继承；不重置次数或取消状态 |
 | `player <UUID> cancel <功能或all>` | 持久取消保护 |
-| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；preventDeath 清零已用次数，respawnInvulnerability 清除无敌窗口 |
+| `player <UUID> reset <功能或all>` | 重置取消状态和对应条件历史；preventDeath 清零已用次数及免死无敌，respawnInvulnerability 仅清除重生无敌 |
 | `player <UUID> revives <已用次数>` | 设置已用免死次数，保留独立无敌窗口 |
 | `copy <源UUID> <目标UUID>` | 复制生效规则，不复制取消历史或已用次数 |
 
@@ -258,7 +258,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 **免死可以防止掉进虚空吗？**
 
-不可以。虚空和 `/kill` 等绕过无敌的特殊伤害仍然有效，模组不提供虚空传送救援。原版不死图腾优先于模组免死次数触发。
+不可以。虚空和 `/kill` 等绕过无敌的特殊伤害仍然有效，模组不提供虚空传送救援。原版不死图腾优先于模组免死次数触发。免死在伤害、护甲及吸收生命等结算后确认致死，并在进入死亡流程前恢复生命，因此不会关闭当前容器、生成死亡快照或替换玩家。装备耐久等伤害结算副作用仍按原版执行。直接绕过伤害流程调用死亡方法的其他模组不保证被拦截；真正死亡会清除先前的免死无敌。
 
 **开启 PvP 保护后还能攻击别人吗？**
 

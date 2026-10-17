@@ -24,16 +24,12 @@ abstract class ServerPlayerMixin implements DeathProtection {
     @Unique
     private int gentleStart$dropLifetimeSeconds = 600;
 
-    @Inject(method = "die", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "die", at = @At("HEAD"))
     private void gentleStart$captureDeath(DamageSource source, CallbackInfo callback) {
         ServerPlayer player = (ServerPlayer) (Object) this;
         ProtectionEngine engine = GentleStart.engine();
+        engine.states().endReviveProtection(player.getUUID());
         gentleStart$protectDrops = false;
-        // Vanilla has already tried a held totem before calling ServerPlayer.die.
-        if (engine.revive(player, source)) {
-            callback.cancel();
-            return;
-        }
         // Keep this decision through the old player's later removal and container cleanup.
         gentleStart$protectDrops = engine.active(player, Feature.DEATH_DROPS);
         gentleStart$dropLifetimeSeconds = engine.profile(player).deathDrops().lifetimeSeconds();

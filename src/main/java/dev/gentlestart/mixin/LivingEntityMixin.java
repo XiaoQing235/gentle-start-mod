@@ -20,6 +20,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 abstract class LivingEntityMixin {
+    @Inject(method = "checkTotemDeathProtection", at = @At("RETURN"), cancellable = true)
+    private void gentleStart$preventLethalDeath(DamageSource source, CallbackInfoReturnable<Boolean> callback) {
+        // Vanilla has resolved damage/absorption and given held death-protection items priority.
+        // Returning true prevents die(), death sounds, container cleanup and death snapshots.
+        if (!callback.getReturnValue() && (Object) this instanceof ServerPlayer player
+                && GentleStart.engine().revive(player, source)) {
+            callback.setReturnValue(true);
+        }
+    }
+
     @Inject(method = "setItemSlot", at = @At("RETURN"))
     private void gentleStart$observeEquipment(EquipmentSlot slot, ItemStack stack, CallbackInfo callback) {
         if ((Object) this instanceof ServerPlayer player) {

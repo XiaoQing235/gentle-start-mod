@@ -288,7 +288,7 @@ public final class ProtectionEngine {
                     return false;
                 }
             }
-            if (respawnInvulnerabilityTicks(victim) > 0) {
+            if (respawnInvulnerabilityTicks(victim) > 0 || reviveInvulnerabilityTicks(victim) > 0) {
                 return false;
             }
             return !active(victim, Feature.DAMAGE_REDUCTION) || profile(victim).damageReduction().reduction() < 1;
@@ -310,13 +310,12 @@ public final class ProtectionEngine {
         if (revive.uses() == 0 || revive.uses() > 0 && used >= revive.uses()) {
             return false;
         }
-        states.revive(player.getUUID());
+        states.revive(player.getUUID(), server.overworld().getGameTime() + revive.invulnerabilitySeconds() * 20L);
         player.setHealth(revive.health());
         player.clearFire();
         player.setTicksFrozen(0);
         player.resetFallDistance();
         applyEffects(player, revive.effects());
-        protectRespawn(player);
         player.sendSystemMessage(Component.literal("[Gentle Start] 已原地免死，剩余次数："
                 + (revive.uses() < 0 ? "不限" : revive.uses() - used - 1)));
         return true;
@@ -327,6 +326,11 @@ public final class ProtectionEngine {
             states.protectRespawn(player.getUUID(), server.overworld().getGameTime()
                     + profile(player).respawnProtection().durationSeconds() * 20L);
         }
+    }
+
+    public long reviveInvulnerabilityTicks(ServerPlayer player) {
+        return active(player, Feature.REVIVE)
+                ? Math.max(0, states.get(player.getUUID()).reviveInvulnerableUntil() - server.overworld().getGameTime()) : 0;
     }
 
     public long respawnInvulnerabilityTicks(ServerPlayer player) {

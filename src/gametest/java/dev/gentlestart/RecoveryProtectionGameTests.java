@@ -19,6 +19,133 @@ public class RecoveryProtectionGameTests {
     }
 
     @GameTest
+    public void lethalInterceptionLeavesFullInventoryAndOpenContainerUntouched(GameTestHelper test) {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":3}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            for (int slot = 0; slot < 36; slot++) {
+                player.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
+            }
+            var chest = new net.minecraft.world.SimpleContainer(27);
+            chest.setItem(0, new ItemStack(Items.GOLD_INGOT, 11));
+            var menu = net.minecraft.world.inventory.ChestMenu.threeRows(1, player.getInventory(), chest);
+            player.containerMenu = menu;
+            menu.setCarried(new ItemStack(Items.DIAMOND, 5));
+            int drops = ProtectionGameTests.drops(player);
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertTrue(player.isAlive() && player.containerMenu == menu, "Lethal interception does not close or replace the menu");
+            test.assertValueEqual(menu.getCarried().getCount(), 5, "Full inventory cursor remains on the cursor");
+            test.assertValueEqual(chest.getItem(0).getCount(), 11, "Chest contents are untouched");
+            test.assertValueEqual(player.getInventory().countItem(Items.COBBLESTONE), 36 * 64, "Inventory remains intact");
+            test.assertValueEqual(ProtectionGameTests.drops(player), drops, "No overflow or death drops are created");
+            test.assertValueEqual(((DeathProtection) player).gentleStart$death(), DeathSnapshot.NONE, "die() was not entered");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 60L, "Independent revive timer is granted");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "No respawn timer is granted");
+            player.invulnerableTime = 0;
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 1, "Consecutive damage consumes no extra charge");
+            test.assertValueEqual(player.getHealth(), 10.0F, "Consecutive damage during immunity leaves health intact");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void reviveChecksFinalDamageAfterReductionAndAbsorption(GameTestHelper test) {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":0},"
+                + "\"damageReduction\":{\"minutes\":-1,\"reduction\":0.5}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            player.setHealth(10);
+            player.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MAX_ABSORPTION).setBaseValue(10);
+            player.setAbsorptionAmount(10);
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 30);
+            test.assertValueEqual(player.getHealth(), 5.0F, "Reduction then absorption make nominally lethal damage survivable");
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 0, "Survivable damage consumes no charge");
+            player.invulnerableTime = 0;
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 10);
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 1, "Exactly lethal final damage consumes one charge");
+            test.assertValueEqual(player.getHealth(), 10.0F, "Exactly lethal damage restores configured health");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 0L, "Zero seconds grants no custom immunity");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void reviveTimerPersistsAndOldStateFilesRemainReadable(GameTestHelper test) throws Exception {
+        java.nio.file.Path file = java.nio.file.Files.createTempFile("gentlestart-revive-state-", ".json");
+        try {
+            java.nio.file.Files.writeString(file, "{}");
+            PlayerStates states = new PlayerStates(file);
+            var id = java.util.UUID.randomUUID();
+            states.revive(id, 120);
+            states.protectRespawn(id, 240);
+            var loaded = new PlayerStates(file).get(id);
+            test.assertValueEqual(loaded.revivesUsed(), 1, "Charge usage persists");
+            test.assertValueEqual(loaded.reviveInvulnerableUntil(), 120L, "Revive deadline persists independently");
+            test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Respawn deadline is unchanged");
+            var json = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(file)).getAsJsonObject();
+            json.getAsJsonObject(id.toString()).remove("reviveInvulnerableUntil");
+            java.nio.file.Files.writeString(file, json.toString());
+            loaded = new PlayerStates(file).get(id);
+            test.assertValueEqual(loaded.reviveInvulnerableUntil(), 0L, "Old state grants no new revive immunity");
+            test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Old respawn deadline is preserved");
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+        }
+        test.succeed();
+    }
+
+    @GameTest
+    public void reviveImmunityValidatesInheritsAndCancelsByItsOwnCondition(GameTestHelper test) {
+        for (String invalid : new String[]{"-1", "1.5", "86401", "null", "\"5\""}) {
+            boolean rejected = false;
+            try {
+                settings("{\"revive\":{\"invulnerabilitySeconds\":" + invalid + "}}");
+            } catch (IllegalArgumentException | IllegalStateException expected) {
+                rejected = true;
+            }
+            test.assertTrue(rejected, "Invalid immunity duration is rejected: " + invalid);
+        }
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":7,"
+                + "\"cancel\":{\"experienceLevel\":2}}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            var override = com.google.gson.JsonParser.parseString("{\"preventDeath\":{\"health\":6}}").getAsJsonObject();
+            engine().replaceConfig(engine().config().withPlayer(player.getUUID(), override));
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 140L, "Partial UUID override inherits immunity duration");
+            player.giveExperienceLevels(2);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 0L, "Revive condition cancels its own immunity");
+            player.invulnerableTime = 0;
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertTrue(player.isDeadOrDying(), "Cancelled revive allows ordinary death");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void realDeathEndsReviveImmunityAndRespawnUsesOnlyItsOwnDuration(GameTestHelper test) {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":9},"
+                + "\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":2}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 180L, "Revive starts its own duration");
+            for (DamageSource source : new DamageSource[]{player.damageSources().generic(), player.damageSources().fall(),
+                    player.damageSources().inFire(), player.damageSources().lava(), player.damageSources().starve(),
+                    player.damageSources().magic()}) {
+                player.invulnerableTime = 0;
+                player.hurtServer(test.getLevel(), source, 1000);
+                test.assertValueEqual(player.getHealth(), 10.0F, "Revive immunity rejects ordinary damage: " + source);
+            }
+            player.hurtServer(test.getLevel(), player.damageSources().fellOutOfWorld(), 1000);
+            test.assertTrue(player.isDeadOrDying(), "Void bypasses revive immunity");
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 1, "Bypass consumes no additional charge");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 0L, "Actual death clears revive immunity");
+            ServerPlayer next = respawn(player);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(next), 0L, "Old revive immunity cannot leak across respawn");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(next), 40L, "Respawn uses its own shorter duration");
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void configuredReviveHealthKeepsTheSameLivingPlayerWithoutDeath(GameTestHelper test) {
         withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"health\":6.5}}"), () -> {
             for (float health : new float[]{6.5F, 40.0F, 0.5F}) {
@@ -83,22 +210,31 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void immunityAndReviveCanBeCancelledAndResetIndependently(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1},\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":2},"
+                + "\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
-            test.assertValueEqual(player.getHealth(), 10.0F, "Revive restores half of vanilla maximum health");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 40L, "Revive grants its own configured window");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "Revive does not grant respawn protection");
+            engine().protectRespawn(player);
             engine().states().cancel(player.getUUID(), Feature.REVIVE, "test");
-            test.assertTrue(engine().respawnInvulnerabilityTicks(player) > 0, "Cancelling revive leaves independent immunity");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 0L, "Cancelling revive clears only its timer");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 100L, "Respawn timer is independent");
             engine().states().reset(player.getUUID(), Feature.REVIVE);
             engine().states().setRevivesUsed(player.getUUID(), 2);
-            test.assertTrue(engine().respawnInvulnerabilityTicks(player) > 0, "Changing revive charges leaves immunity intact");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 100L, "Revive reset preserves respawn protection");
             engine().states().reset(player.getUUID(), Feature.RESPAWN_PROTECTION);
-            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "Only immunity reset clears its timer");
-            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 2, "Immunity reset preserves revive charges");
-            engine().protectRespawn(player);
+            player.invulnerableTime = 0;
+            player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 3, "Resetting respawn preserves revive charges");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 40L, "Last available charge still grants immunity");
             engine().states().cancel(player.getUUID(), Feature.RESPAWN_PROTECTION, "test");
-            test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "Immunity cancellation clears its timer");
-            test.assertTrue(engine().active(player, Feature.REVIVE), "Immunity cancellation leaves revive eligible");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 40L, "Respawn cancellation preserves revive protection");
+            engine().states().setRevivesUsed(player.getUUID(), 1);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 40L, "Editing charges does not reset an active timer");
+            engine().states().reset(player.getUUID(), Feature.REVIVE);
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 0L, "Revive reset clears its own timer");
+            test.assertValueEqual(engine().states().get(player.getUUID()).revivesUsed(), 0, "Revive reset clears charges");
         });
         test.succeed();
     }

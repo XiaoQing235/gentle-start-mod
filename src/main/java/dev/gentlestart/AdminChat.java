@@ -152,6 +152,7 @@ final class AdminChat {
             case "ratio" -> "经验保留比例（0～1）";
             case "uses" -> "免死总次数（整数，-1 不限）";
             case "health" -> "免死恢复生命（正数，2 点 = 1 颗心）";
+            case "invulnerabilitySeconds" -> "每次免死后的独立无敌秒数（整数，0～86400）";
             case "durationSeconds" -> "每次无敌秒数（整数，0～86400）";
             case "lifetimeSeconds" -> "掉落物寿命（整数秒，1～86400）";
             case "reduction" -> "伤害减免比例（0～1）";

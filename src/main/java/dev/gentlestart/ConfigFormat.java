@@ -98,7 +98,7 @@ final class ConfigFormat {
             case "pvpProtection" -> "防止其他玩家造成伤害。";
             case "damageReduction" -> "受到伤害时按比例减免。";
             case "mobDetectionRange" -> "缩小怪物对受保护玩家的感知范围。";
-            case "respawnInvulnerability" -> "重生或原地免死后的短暂无敌。";
+            case "respawnInvulnerability" -> "真正死亡重生后的短暂无敌，与免死无敌独立。";
             case "protectDeathDrops" -> "保护死亡掉落物免受伤害并设置消失时间；不限制他人拾取。";
             case "minutes" -> "累计游玩分钟上限：0 关闭，负数永久，正数到期结束。";
             case "cancel" -> "提前取消本功能的条件；达成历史会保存，取消后需管理员重置。";
@@ -120,7 +120,8 @@ final class ConfigFormat {
             case "removeOnAttack" -> "主动攻击玩家时是否解除自己的 PvP 保护。";
             case "reduction" -> "伤害减免比例 0～1；0.25 表示减伤 25%。";
             case "multiplier" -> "怪物感知范围倍数 0～1；0.5 表示原范围的一半。";
-            case "durationSeconds" -> "每次重生或免死后的无敌秒数，整数 0～86400。";
+            case "invulnerabilitySeconds" -> "每次免死后的独立无敌秒数，整数 0～86400，默认 5；0 不附加无敌。";
+            case "durationSeconds" -> "每次真正死亡重生后的无敌秒数，整数 0～86400。";
             case "lifetimeSeconds" -> "受保护死亡掉落物存在秒数，整数 1～86400，默认 600；只影响之后产生的掉落物。";
             default -> "该玩家的覆盖规则，未填写的字段继承默认配置。";
         };

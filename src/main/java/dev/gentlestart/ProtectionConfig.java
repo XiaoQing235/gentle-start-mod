@@ -163,7 +163,7 @@ public final class ProtectionConfig {
                 case EXPERIENCE -> Set.of("minutes", "cancel", "ratio");
                 case SCORE -> Set.of("minutes", "cancel");
                 case DEATH_DROPS -> Set.of("minutes", "cancel", "lifetimeSeconds");
-                case REVIVE -> Set.of("minutes", "cancel", "uses", "health", "effects");
+                case REVIVE -> Set.of("minutes", "cancel", "uses", "health", "invulnerabilitySeconds", "effects");
                 case RESPAWN_PROTECTION -> Set.of("minutes", "cancel", "durationSeconds");
                 case EFFECTS -> Set.of("minutes", "cancel", "list");
                 case PVP -> Set.of("minutes", "cancel", "removeOnAttack");
@@ -171,7 +171,7 @@ public final class ProtectionConfig {
                 case MOB_RANGE -> Set.of("minutes", "cancel", "multiplier");
             };
             checkFields(rule, fields, name);
-            for (String field : Set.of("uses", "durationSeconds", "lifetimeSeconds")) {
+            for (String field : Set.of("uses", "durationSeconds", "lifetimeSeconds", "invulnerabilitySeconds")) {
                 if (rule.has(field)) {
                     integer(rule.get(field), field);
                 }

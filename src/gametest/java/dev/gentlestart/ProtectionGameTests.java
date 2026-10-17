@@ -41,7 +41,7 @@ public class ProtectionGameTests {
         Path file = Files.createTempFile("gentlestart-invalid-config-", ".json");
         try {
             for (String document : List.of("{\"protectionSeconds\":600}",
-                    "{\"defaults\":{\"revive\":{\"invulnerabilitySeconds\":8}}}")) {
+                    "{\"defaults\":{\"revive\":{\"unknownProtectionOption\":8}}}")) {
                 Files.writeString(file, document);
                 boolean rejected = false;
                 try {
