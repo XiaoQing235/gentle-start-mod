@@ -64,7 +64,7 @@ abstract class ServerPlayerMixin implements DeathProtection {
 
     @Inject(method = {"setExperiencePoints", "setExperienceLevels"}, at = @At("RETURN"))
     private void gentleStart$observeSetLevel(int amount, CallbackInfo callback) {
-        GentleStart.checkConditions((ServerPlayer) (Object) this);
+        GentleStart.checkConditions((ServerPlayer) (Object) this, ProtectionEngine.ConditionChange.LEVEL);
     }
 
     @Override

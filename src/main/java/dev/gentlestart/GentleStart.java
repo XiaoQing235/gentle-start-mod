@@ -23,10 +23,10 @@ public final class GentleStart implements DedicatedServerModInitializer {
         return engine;
     }
 
-    public static void checkConditions(Player player) {
+    public static void checkConditions(Player player, ProtectionEngine.ConditionChange change) {
         // Inventory and level changes also occur while a player is being constructed or loaded.
         if (engine != null && player instanceof ServerPlayer serverPlayer && serverPlayer.connection != null) {
-            engine.checkConditions(serverPlayer);
+            engine.checkConditions(serverPlayer, change);
         }
     }
 
@@ -40,6 +40,11 @@ public final class GentleStart implements DedicatedServerModInitializer {
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> engine.states().save());
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> engine = null);
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {
+            if (success) {
+                engine.checkOnlineConditions();
+            }
+        });
         CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> ProtectionCommands.register(dispatcher));
         ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> engine.allowDamage(entity, source, amount));
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
@@ -52,6 +57,7 @@ public final class GentleStart implements DedicatedServerModInitializer {
             }
         });
         ServerPlayerEvents.AFTER_RESPAWN.register((oldPlayer, newPlayer, alive) -> {
+            engine.checkConditions(newPlayer);
             engine.refreshEffects(newPlayer);
             if (!alive) {
                 engine.protectRespawn(newPlayer);

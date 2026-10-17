@@ -3,10 +3,12 @@ package dev.gentlestart.mixin;
 import dev.gentlestart.GentleStart;
 import dev.gentlestart.DeathProtection;
 import dev.gentlestart.DeathDropProtection;
+import dev.gentlestart.ProtectionEngine.ConditionChange;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -14,9 +16,17 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LivingEntity.class)
 abstract class LivingEntityMixin {
+    @Inject(method = "setItemSlot", at = @At("RETURN"))
+    private void gentleStart$observeEquipment(EquipmentSlot slot, ItemStack stack, CallbackInfo callback) {
+        if ((Object) this instanceof ServerPlayer player) {
+            GentleStart.checkConditions(player, ConditionChange.ITEMS);
+        }
+    }
+
     @Inject(method = "createItemStackToDrop", at = @At("RETURN"))
     private void gentleStart$protectDeathDrop(ItemStack stack, boolean randomly, boolean thrownFromHand,
                                                     CallbackInfoReturnable<ItemEntity> callback) {

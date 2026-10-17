@@ -43,14 +43,18 @@ public final class ProtectionCommands {
         }));
         var admin = Commands.literal("admin").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS))
                 .executes(guard(context -> context.getSource().getEntity() instanceof ServerPlayer
-                        ? openDialog(context, AdminDialogs.home(engine().config())) : adminHelp(context)));
+                        ? chat(context, AdminChat.home(engine().config())) : adminHelp(context)));
         admin.then(Commands.literal("help").executes(ProtectionCommands::adminHelp));
-        var ui = Commands.literal("ui").executes(guard(context -> openDialog(context, AdminDialogs.home(engine().config()))));
-        ui.then(Commands.literal("defaults").executes(guard(context -> openDialog(context, AdminDialogs.features(engine().config(), null))))
-                .then(feature(false).executes(guard(context -> openRule(context, null)))));
+        var ui = Commands.literal("ui").executes(guard(context -> chat(context, AdminChat.home(engine().config()))));
+        ui.then(Commands.literal("defaults").executes(guard(context -> chat(context, AdminChat.features(engine().config(), null))))
+                .then(feature(false).executes(guard(context -> openRule(context, null, 1)))
+                        .then(Commands.argument("page", IntegerArgumentType.integer(1)).executes(guard(context ->
+                                openRule(context, null, IntegerArgumentType.getInteger(context, "page")))))));
         ui.then(Commands.literal("player").then(uuidArgument("uuid")
-                .executes(guard(context -> openDialog(context, AdminDialogs.features(engine().config(), uuid(context)))))
-                .then(feature(false).executes(guard(context -> openRule(context, uuid(context)))))));
+                .executes(guard(context -> chat(context, AdminChat.features(engine().config(), uuid(context)))))
+                .then(feature(false).executes(guard(context -> openRule(context, uuid(context), 1)))
+                        .then(Commands.argument("page", IntegerArgumentType.integer(1)).executes(guard(context ->
+                                openRule(context, uuid(context), IntegerArgumentType.getInteger(context, "page"))))))));
         ui.then(Commands.literal("players").executes(guard(context -> openPlayers(context, 1)))
                 .then(Commands.argument("page", IntegerArgumentType.integer(1)).executes(guard(context ->
                         openPlayers(context, IntegerArgumentType.getInteger(context, "page"))))));
@@ -59,15 +63,31 @@ public final class ProtectionCommands {
             if (selected.size() != 1) {
                 throw new IllegalArgumentException("请选择一名玩家。");
             }
-            return openDialog(context, AdminDialogs.features(engine().config(), selected.iterator().next().id()));
+            return chat(context, AdminChat.features(engine().config(), selected.iterator().next().id()));
         }))));
-        ui.then(Commands.literal("apply").then(Commands.argument("target", StringArgumentType.word())
-                .then(feature(false).then(Commands.argument("json", StringArgumentType.greedyString()).executes(guard(context -> {
+        ui.then(Commands.literal("set").then(Commands.argument("target", StringArgumentType.word())
+                .then(feature(false).then(Commands.argument("field", StringArgumentType.word())
+                        .then(Commands.argument("value", StringArgumentType.greedyString()).executes(guard(context -> {
                     String target = StringArgumentType.getString(context, "target");
                     UUID id = target.equals("defaults") ? null : UUID.fromString(target);
-                    editRule(context, id);
-                    return context.getSource().getEntity() instanceof ServerPlayer ? openRule(context, id) : 1;
-                }))))));
+                    Feature selected = Feature.parse(StringArgumentType.getString(context, "feature"));
+                    String field = StringArgumentType.getString(context, "field");
+                    if (!AdminChat.fields(engine().config(), id, selected).containsKey(field)) {
+                        throw new IllegalArgumentException("未知配置字段：" + field);
+                    }
+                    JsonObject patch = new JsonObject();
+                    JsonObject parent = patch;
+                    String[] path = field.split("\\.");
+                    for (int index = 0; index < path.length - 1; index++) {
+                        JsonObject child = new JsonObject();
+                        parent.add(path[index], child);
+                        parent = child;
+                    }
+                    parent.add(path[path.length - 1], JsonParser.parseString(StringArgumentType.getString(context, "value")));
+                    update(id, selected, patch);
+                    reply(context, "已保存 " + selected.id() + "." + field + "。", true);
+                    return openRule(context, id, AdminChat.fieldPage(engine().config(), id, selected, field));
+                })))))));
         admin.then(ui);
         admin.then(Commands.literal("settings").then(Commands.argument("enabled", BoolArgumentType.bool())
                 .then(Commands.argument("playersPerTick", IntegerArgumentType.integer(1)).executes(guard(context -> {
@@ -77,7 +97,7 @@ public final class ProtectionCommands {
                     engine().replaceConfig(ProtectionConfig.parse(document));
                     reply(context, "全局设置已保存。", true);
                     return context.getSource().getEntity() instanceof ServerPlayer
-                            ? openDialog(context, AdminDialogs.home(engine().config())) : 1;
+                            ? chat(context, AdminChat.home(engine().config())) : 1;
                 })))));
         admin.then(Commands.literal("lookup").then(Commands.argument("player", GameProfileArgument.gameProfile())
                 .executes(guard(context -> {
@@ -137,6 +157,7 @@ public final class ProtectionCommands {
         player.then(Commands.literal("reset").then(feature(true).executes(guard(context -> {
             String selected = StringArgumentType.getString(context, "feature");
             engine().states().reset(uuid(context), selected.equals("all") ? null : Feature.parse(selected));
+            recheckPlayer(context, uuid(context));
             reply(context, "取消状态和对应条件历史已重置；当前仍满足的自动取消条件会再次生效。", true);
             return 1;
         }))));
@@ -182,21 +203,18 @@ public final class ProtectionCommands {
         return 1;
     }
 
-    private static int openDialog(CommandContext<CommandSourceStack> context, JsonObject document)
-            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        context.getSource().getPlayerOrException().openDialog(AdminDialogs.decode(document));
+    private static int chat(CommandContext<CommandSourceStack> context, List<Component> lines) {
+        lines.forEach(line -> context.getSource().sendSuccess(() -> line, false));
         return 1;
     }
 
-    private static int openRule(CommandContext<CommandSourceStack> context, UUID target)
-            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        return openDialog(context, AdminDialogs.rule(engine().config(), target,
-                Feature.parse(StringArgumentType.getString(context, "feature"))));
+    private static int openRule(CommandContext<CommandSourceStack> context, UUID target, int page) {
+        return chat(context, AdminChat.rule(engine().config(), target,
+                Feature.parse(StringArgumentType.getString(context, "feature")), page));
     }
 
-    private static int openPlayers(CommandContext<CommandSourceStack> context, int page)
-            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
-        return openDialog(context, AdminDialogs.players(engine(), context.getSource().getPlayerOrException(), page));
+    private static int openPlayers(CommandContext<CommandSourceStack> context, int page) {
+        return chat(context, AdminChat.players(engine().config(), context.getSource().getServer().getPlayerList(), page));
     }
 
     private static UUID uuid(CommandContext<CommandSourceStack> context) {
@@ -245,9 +263,17 @@ public final class ProtectionCommands {
         update(id, Feature.parse(StringArgumentType.getString(context, "feature")), patch);
         if (fromNow) {
             engine().states().reset(id, Feature.parse(StringArgumentType.getString(context, "feature")));
+            recheckPlayer(context, id);
         }
         reply(context, "保护期限已保存（负数长期、0 禁用、正数为累计游玩分钟阈值）。", true);
         return 1;
+    }
+
+    private static void recheckPlayer(CommandContext<CommandSourceStack> context, UUID id) {
+        ServerPlayer player = context.getSource().getServer().getPlayerList().getPlayer(id);
+        if (player != null) {
+            engine().checkConditions(player);
+        }
     }
 
     private static int editRule(CommandContext<CommandSourceStack> context, UUID id) {
@@ -311,12 +337,12 @@ public final class ProtectionCommands {
             try {
                 return action.run(context);
             } catch (IllegalArgumentException | IllegalStateException | JsonParseException exception) {
-                if (context.getInput().startsWith("gentlestart admin ui apply ")
+                if (context.getInput().startsWith("gentlestart admin ui set ")
                         && context.getSource().getEntity() instanceof ServerPlayer player) {
                     String target = StringArgumentType.getString(context, "target");
                     String reopen = "/gentlestart admin ui " + (target.equals("defaults") ? "defaults" : "player " + target)
                             + " " + StringArgumentType.getString(context, "feature");
-                    player.sendSystemMessage(Component.literal("[重新打开配置表单]")
+                    player.sendSystemMessage(Component.literal("[重新查看配置]")
                             .withStyle(style -> style.withClickEvent(new ClickEvent.RunCommand(reopen))));
                 }
                 throw ERROR.create(exception.getMessage());

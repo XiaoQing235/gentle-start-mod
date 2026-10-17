@@ -1,6 +1,7 @@
 package dev.gentlestart.mixin;
 
 import dev.gentlestart.GentleStart;
+import dev.gentlestart.ProtectionEngine.ConditionChange;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -19,11 +20,11 @@ abstract class InventoryMixin {
 
     @Inject(method = "setItem", at = @At("RETURN"))
     private void gentleStart$observeSet(int slot, ItemStack stack, CallbackInfo callback) {
-        GentleStart.checkConditions(player);
+        GentleStart.checkConditions(player, ConditionChange.ITEMS);
     }
 
     @Inject(method = "add(ILnet/minecraft/world/item/ItemStack;)Z", at = @At("RETURN"))
     private void gentleStart$observeAdd(int slot, ItemStack stack, CallbackInfoReturnable<Boolean> callback) {
-        GentleStart.checkConditions(player);
+        GentleStart.checkConditions(player, ConditionChange.ITEMS);
     }
 }

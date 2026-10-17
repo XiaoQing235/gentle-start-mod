@@ -2,6 +2,7 @@ package dev.gentlestart.mixin;
 
 import dev.gentlestart.DeathProtection;
 import dev.gentlestart.GentleStart;
+import dev.gentlestart.ProtectionEngine.ConditionChange;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.server.level.ServerLevel;
@@ -45,6 +46,6 @@ abstract class PlayerMixin {
 
     @Inject(method = {"giveExperiencePoints", "giveExperienceLevels"}, at = @At("RETURN"))
     private void gentleStart$observeLevel(int amount, CallbackInfo callback) {
-        GentleStart.checkConditions((Player) (Object) this);
+        GentleStart.checkConditions((Player) (Object) this, ConditionChange.LEVEL);
     }
 }

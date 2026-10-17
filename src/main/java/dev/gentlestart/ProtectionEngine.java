@@ -25,6 +25,14 @@ import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
 
 public final class ProtectionEngine {
+    public enum ConditionChange {
+        ALL, ITEMS, LEVEL, ADVANCEMENTS, TIME, HISTORY;
+
+        boolean includes(ConditionChange kind) {
+            return this == ALL || this == kind;
+        }
+    }
+
     private final MinecraftServer server;
     private final Path configFile;
     private final PlayerStates states;
@@ -59,12 +67,14 @@ public final class ProtectionEngine {
         ProtectionConfig candidate = ProtectionConfig.load(configFile);
         validate(candidate);
         config = candidate;
+        checkOnlineConditions();
     }
 
     public void replaceConfig(ProtectionConfig candidate) {
         validate(candidate);
         candidate.save(configFile);
         config = candidate;
+        checkOnlineConditions();
     }
 
     private void validate(ProtectionConfig candidate) {
@@ -97,15 +107,24 @@ public final class ProtectionEngine {
         if (!config.enabled() || player.isSpectator()) {
             return false;
         }
-        evaluateCancellation(player, feature);
+        // Item, level and advancement state is recorded by their change events.
+        evaluateCancellation(player, feature, ConditionChange.TIME);
         return states.get(player.getUUID()).cancellation(feature) == null
                 && profile(player).window(feature).includes(playedTicks(player));
     }
 
     public void checkConditions(ServerPlayer player) {
+        checkConditions(player, ConditionChange.ALL);
+    }
+
+    public void checkOnlineConditions() {
+        server.getPlayerList().getPlayers().forEach(this::checkConditions);
+    }
+
+    public void checkConditions(ServerPlayer player, ConditionChange change) {
         if (config.enabled()) {
             for (Feature feature : Feature.values()) {
-                evaluateCancellation(player, feature);
+                evaluateCancellation(player, feature, change);
             }
         }
     }
@@ -121,7 +140,7 @@ public final class ProtectionEngine {
         int count = Math.min(config.playersPerTick(), players.size());
         for (int checked = 0; checked < count; checked++) {
             nextConditionPlayer %= players.size();
-            checkConditions(players.get(nextConditionPlayer));
+            checkConditions(players.get(nextConditionPlayer), ConditionChange.TIME);
             nextConditionPlayer++;
         }
     }
@@ -146,52 +165,64 @@ public final class ProtectionEngine {
         }
         if (changed) {
             states.save();
-            checkConditions(player);
+            checkConditions(player, ConditionChange.HISTORY);
         }
     }
 
-    private void evaluateCancellation(ServerPlayer player, Feature feature) {
+    private void evaluateCancellation(ServerPlayer player, Feature feature, ConditionChange change) {
         ProtectionRules.Window window = profile(player).window(feature);
         UUID id = player.getUUID();
         if (window.minutes() == 0 || states.get(id).cancellation(feature) != null) {
             return;
         }
         ProtectionRules.Cancellation cancel = window.cancel();
+        boolean relevant = switch (change) {
+            case ITEMS -> !cancel.items().isEmpty() || !cancel.itemTags().isEmpty();
+            case LEVEL -> cancel.experienceLevel() > 0;
+            case ADVANCEMENTS -> !cancel.advancements().isEmpty();
+            case TIME -> cancel.playMinutes() > 0;
+            case ALL, HISTORY -> true;
+        };
+        if (!relevant) {
+            return;
+        }
         List<String> required = new ArrayList<>();
         List<String> observedNow = new ArrayList<>();
         for (Identifier advancement : cancel.advancements()) {
             String condition = "advancement:" + advancement;
             required.add(condition);
-            var holder = server.getAdvancements().get(advancement);
-            if (holder != null && player.getAdvancements().getOrStartProgress(holder).isDone()) {
-                observedNow.add(condition);
+            if (change.includes(ConditionChange.ADVANCEMENTS)) {
+                var holder = server.getAdvancements().get(advancement);
+                if (holder != null && player.getAdvancements().getOrStartProgress(holder).isDone()) {
+                    observedNow.add(condition);
+                }
             }
         }
         for (Identifier item : cancel.items()) {
             String condition = "item:" + item;
             required.add(condition);
-            if (hasItem(player, stack -> stack.is(BuiltInRegistries.ITEM.getValue(item)))) {
+            if (change.includes(ConditionChange.ITEMS) && hasItem(player, stack -> stack.is(BuiltInRegistries.ITEM.getValue(item)))) {
                 observedNow.add(condition);
             }
         }
         for (Identifier tag : cancel.itemTags()) {
             String condition = "tag:" + tag;
             required.add(condition);
-            if (hasItem(player, stack -> stack.is(TagKey.create(Registries.ITEM, tag)))) {
+            if (change.includes(ConditionChange.ITEMS) && hasItem(player, stack -> stack.is(TagKey.create(Registries.ITEM, tag)))) {
                 observedNow.add(condition);
             }
         }
         if (cancel.experienceLevel() > 0) {
             String condition = "level:" + cancel.experienceLevel();
             required.add(condition);
-            if (player.experienceLevel >= cancel.experienceLevel()) {
+            if (change.includes(ConditionChange.LEVEL) && player.experienceLevel >= cancel.experienceLevel()) {
                 observedNow.add(condition);
             }
         }
         if (cancel.playMinutes() > 0) {
             String condition = "playMinutes:" + cancel.playMinutes();
             required.add(condition);
-            if (playedTicks(player) >= cancel.playMinutes() * 1200.0) {
+            if (change.includes(ConditionChange.TIME) && playedTicks(player) >= cancel.playMinutes() * 1200.0) {
                 observedNow.add(condition);
             }
         }

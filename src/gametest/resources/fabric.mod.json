@@ -9,7 +9,7 @@
       "dev.gentlestart.ExpandedProtectionGameTests",
       "dev.gentlestart.RecoveryProtectionGameTests",
       "dev.gentlestart.DeathDropGameTests",
-      "dev.gentlestart.AdminDialogGameTests"
+      "dev.gentlestart.AdminChatGameTests"
     ]
   }
 }

@@ -1,6 +1,7 @@
 package dev.gentlestart.mixin;
 
 import dev.gentlestart.GentleStart;
+import dev.gentlestart.ProtectionEngine.ConditionChange;
 import net.minecraft.advancements.AdvancementHolder;
 import net.minecraft.server.PlayerAdvancements;
 import net.minecraft.server.level.ServerPlayer;
@@ -17,6 +18,6 @@ abstract class PlayerAdvancementsMixin {
 
     @Inject(method = "award", at = @At("RETURN"))
     private void gentleStart$observeAdvancement(AdvancementHolder holder, String criterion, CallbackInfoReturnable<Boolean> callback) {
-        GentleStart.checkConditions(player);
+        GentleStart.checkConditions(player, ConditionChange.ADVANCEMENTS);
     }
 }

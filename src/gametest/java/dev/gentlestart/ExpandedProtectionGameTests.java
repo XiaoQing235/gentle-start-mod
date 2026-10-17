@@ -102,6 +102,63 @@ public class ExpandedProtectionGameTests {
     }
 
     @GameTest
+    public void eventChecksDoNotPollUnrelatedConditions(GameTestHelper test) {
+        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"experienceLevel\":5}},"
+                + "\"pvp\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            // Deliberately bypass the vanilla setter to prove unrelated events and ticks no longer poll levels.
+            player.experienceLevel = 5;
+            player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.PVP) != null,
+                    "Inventory mutation immediately records its own condition without active() or a tick");
+            engine().checkNextPlayers(List.of(player));
+            test.assertTrue(engine().active(player, Feature.INVENTORY), "Time checks and hot-path protection reads do not scan level state");
+            player.setExperienceLevels(5);
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "Vanilla level event immediately cancels level-dependent protection");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void equipmentChangesImmediatelyObserveItemConditions(GameTestHelper test) {
+        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond_helmet\"]}}}"), () -> {
+            ServerPlayer player = player(test, 0);
+            player.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "Equipment API triggers cancellation without a periodic scan or active() call");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void configurationAndResetRecheckExistingConditionsImmediately(GameTestHelper test) {
+        withConfig(test, settings("{}"), () -> {
+            ServerPlayer player = player(test, 0);
+            player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
+            engine().replaceConfig(settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"));
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "Installing a new rule sees items acquired before that rule existed");
+            var console = test.getLevel().getServer().createCommandSourceStack();
+            execute(test, "gentlestart admin player " + player.getUUID() + " reset inventory", console);
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "Reset immediately reevaluates a currently held item");
+            player.getInventory().clearContent();
+            execute(test, "gentlestart admin player " + player.getUUID() + " reset inventory", console);
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) == null,
+                    "After removing the item a reset clears historical cancellation");
+            player.experienceLevel = 7;
+            JsonObject updated = engine().config().document();
+            updated.getAsJsonObject("defaults").getAsJsonObject("inventory").add("cancel", json("{\"experienceLevel\":7}"));
+            ProtectionConfig.parse(updated).save(configFile());
+            engine().reload();
+            test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
+                    "File reload rechecks online players without waiting for another event");
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void uuidRulesInheritAndEachFeatureHasItsOwnClock(GameTestHelper test) {
         withConfig(test, settings("{\"inventory\":{\"minutes\":1},\"experience\":{\"minutes\":2},\"score\":{\"minutes\":-3}}"), () -> {
             ServerPlayer first = player(test, 1200);
