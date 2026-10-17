@@ -379,28 +379,6 @@ public class ExpandedProtectionGameTests {
     }
 
     @GameTest
-    public void legacyConfigurationImportsWithoutOverwritingItsFile(GameTestHelper test) throws Exception {
-        Path directory = Files.createTempDirectory("gentlestart-legacy-config-");
-        Path file = directory.resolve("gentle-start-mod.json");
-        String legacy = "{\"protectionSeconds\":600,\"keepInventory\":false,\"keepExperience\":true,\"effects\":[]}";
-        try {
-            Files.writeString(file, legacy);
-            var profile = ProtectionConfig.load(file).defaultProfile();
-            test.assertValueEqual(profile.inventory().window().minutes(), 0.0, "Old inventory switch imported");
-            test.assertValueEqual(profile.experience().window().minutes(), 10.0, "Old seconds converted to minutes");
-            test.assertTrue(profile.effects().list().isEmpty(), "Old effect list imported");
-            test.assertValueEqual(Files.readString(file), legacy, "Import preserves the original file");
-            Files.writeString(file, "{\"keepInventory\":false}");
-            test.assertValueEqual(ProtectionConfig.load(file).defaultProfile().experience().window().minutes(), 120.0,
-                    "Partial old configuration keeps its old defaults");
-        } finally {
-            Files.deleteIfExists(file);
-            Files.deleteIfExists(directory);
-        }
-        test.succeed();
-    }
-
-    @GameTest
     public void grantUsesCurrentPlaytimeAndRuleErrorsAreAtomic(GameTestHelper test) {
         withConfig(test, settings("{}"), () -> {
             ServerPlayer player = player(test, 12000);

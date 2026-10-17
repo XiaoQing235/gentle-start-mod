@@ -37,54 +37,24 @@ import net.minecraft.world.phys.AABB;
 
 public class ProtectionGameTests {
     @GameTest
-    public void renamedFilesPreserveExistingData(GameTestHelper test) throws Exception {
-        Path directory = Files.createTempDirectory("gentle-start-rename-");
+    public void configurationFilesRejectUnsupportedFields(GameTestHelper test) throws Exception {
+        Path file = Files.createTempFile("gentlestart-invalid-config-", ".json");
         try {
-            for (String suffix : List.of(".json", "-state.json")) {
-                Path oldFile = directory.resolve("newcomer-protection" + suffix);
-                Path newFile = directory.resolve("gentle-start-mod" + suffix);
-                Files.writeString(oldFile, "{\"version\":3}");
-                test.assertValueEqual(JsonFiles.renamed(newFile, oldFile.getFileName().toString()), newFile,
-                        "The new filename is authoritative");
-                test.assertValueEqual(Files.readString(newFile), Files.readString(oldFile), "Migration preserves data");
-                Files.writeString(newFile, "{\"version\":4}");
-                JsonFiles.renamed(newFile, oldFile.getFileName().toString());
-                test.assertValueEqual(Files.readString(newFile), "{\"version\":4}", "Existing new data is never overwritten");
-                Files.delete(newFile);
-                Files.delete(oldFile);
-                JsonFiles.renamed(newFile, oldFile.getFileName().toString());
-                test.assertFalse(Files.exists(newFile), "Fresh installs use normal initialization");
+            for (String document : List.of("{\"protectionSeconds\":600}",
+                    "{\"defaults\":{\"revive\":{\"invulnerabilitySeconds\":8}}}")) {
+                Files.writeString(file, document);
+                boolean rejected = false;
+                try {
+                    ProtectionConfig.load(file);
+                } catch (IllegalStateException expected) {
+                    rejected = true;
+                }
+                test.assertTrue(rejected, "Unsupported fields must fail at the file boundary");
+                test.assertValueEqual(Files.readString(file), document, "Rejected files remain unchanged");
             }
         } finally {
-            try (var files = Files.list(directory)) {
-                for (Path file : files.toList()) {
-                    Files.delete(file);
-                }
-            }
-            Files.delete(directory);
+            Files.deleteIfExists(file);
         }
-        test.succeed();
-    }
-
-    @GameTest
-    public void previousNamespaceDeathSnapshotStillRestores(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.defaults(), () -> {
-            ServerPlayer player = player(test, 0);
-            player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 9));
-            player.kill(test.getLevel());
-            TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING,
-                    test.getLevel().registryAccess());
-            player.saveWithoutId(output);
-            var tag = output.buildResult();
-            tag.put("newcomer-protection:death", tag.get("gentle-start-mod:death"));
-            tag.remove("gentle-start-mod:death");
-            tag.putBoolean("newcomer-protection:protect_death_drops", true);
-            tag.remove("gentle-start-mod:protect_death_drops");
-            player.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-            test.assertTrue(((DeathProtection) player).gentleStart$protectDrops(), "Old pending drop protection survives");
-            ServerPlayer restored = respawn(player);
-            test.assertValueEqual(restored.getInventory().getItem(0).getCount(), 9, "Old death snapshot restores inventory");
-        });
         test.succeed();
     }
 

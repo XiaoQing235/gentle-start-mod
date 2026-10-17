@@ -14,18 +14,6 @@ final class JsonFiles {
     private JsonFiles() {
     }
 
-    static Path renamed(Path file, String previousName) {
-        Path previous = file.resolveSibling(previousName);
-        if (!Files.exists(file) && Files.exists(previous)) {
-            try {
-                Files.copy(previous, file);
-            } catch (IOException exception) {
-                throw new IllegalStateException("Cannot migrate " + previousName, exception);
-            }
-        }
-        return file;
-    }
-
     static void write(Path file, JsonElement json) {
         Path temporary = null;
         try {

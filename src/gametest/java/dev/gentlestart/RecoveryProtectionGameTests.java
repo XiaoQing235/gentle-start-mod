@@ -5,9 +5,6 @@ import static dev.gentlestart.ProtectionGameTests.player;
 import static dev.gentlestart.ProtectionGameTests.respawn;
 import static dev.gentlestart.ProtectionGameTests.withConfig;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
@@ -127,24 +124,4 @@ public class RecoveryProtectionGameTests {
         test.succeed();
     }
 
-    @GameTest
-    public void versionTwoFileImportsSplitImmunityWithoutRewritingIt(GameTestHelper test) throws Exception {
-        Path file = Files.createTempFile("gentlestart-version-two-", ".json");
-        UUID id = UUID.randomUUID();
-        String text = "{\"defaults\":{\"revive\":{\"minutes\":120,\"uses\":2,\"invulnerabilitySeconds\":8}},"
-                + "\"players\":{\"" + id + "\":{\"revive\":{\"minutes\":-1}}}}";
-        try {
-            Files.writeString(file, text);
-            ProtectionConfig config = ProtectionConfig.load(file);
-            test.assertValueEqual(config.defaultProfile().respawnProtection().window().minutes(), 120.0, "Old default immunity window imported");
-            test.assertValueEqual(config.profile(id).respawnProtection().window().minutes(), -1.0, "Old UUID window imported independently");
-            test.assertValueEqual(config.profile(id).respawnProtection().durationSeconds(), 8, "Old inherited immunity duration imported");
-            test.assertFalse(config.document().getAsJsonObject("defaults").getAsJsonObject("revive").has("invulnerabilitySeconds"),
-                    "New revive schema excludes immunity duration");
-            test.assertValueEqual(Files.readString(file), text, "Loading leaves the old file intact");
-        } finally {
-            Files.deleteIfExists(file);
-        }
-        test.succeed();
-    }
 }

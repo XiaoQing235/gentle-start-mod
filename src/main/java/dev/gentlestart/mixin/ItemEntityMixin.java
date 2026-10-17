@@ -60,7 +60,6 @@ abstract class ItemEntityMixin implements DeathDropProtection {
     @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
     private void gentleStart$load(ValueInput input, CallbackInfo callback) {
         // Restore only the marker. The saved vanilla Age must keep counting from its previous value.
-        gentleStart$protected = input.getBooleanOr("gentle-start-mod:death_drop",
-                input.getBooleanOr("newcomer-protection:death_drop", false));
+        gentleStart$protected = input.getBooleanOr("gentle-start-mod:death_drop", false);
     }
 }

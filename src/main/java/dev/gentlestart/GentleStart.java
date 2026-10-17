@@ -34,10 +34,8 @@ public final class GentleStart implements DedicatedServerModInitializer {
     public void onInitializeServer() {
         ServerLifecycleEvents.SERVER_STARTING.register(server -> {
             engine = new ProtectionEngine(server,
-                    JsonFiles.renamed(FabricLoader.getInstance().getConfigDir().resolve("gentle-start-mod.json"),
-                            "newcomer-protection.json"),
-                    JsonFiles.renamed(server.getWorldPath(LevelResource.ROOT).resolve("data/gentle-start-mod-state.json"),
-                            "newcomer-protection-state.json"));
+                    FabricLoader.getInstance().getConfigDir().resolve("gentle-start-mod.json"),
+                    server.getWorldPath(LevelResource.ROOT).resolve("data/gentle-start-mod-state.json"));
             LOGGER.info("Gentle Start loaded with {} UUID overrides", engine.config().configuredPlayers().size());
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> engine.states().save());

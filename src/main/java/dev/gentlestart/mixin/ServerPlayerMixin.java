@@ -5,7 +5,6 @@ import dev.gentlestart.DeathSnapshot;
 import dev.gentlestart.Feature;
 import dev.gentlestart.GentleStart;
 import dev.gentlestart.ProtectionEngine;
-import java.util.stream.IntStream;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.level.storage.ValueInput;
@@ -52,18 +51,10 @@ abstract class ServerPlayerMixin implements DeathProtection {
     private void gentleStart$loadDeath(ValueInput input, CallbackInfo callback) {
         ServerPlayer player = (ServerPlayer) (Object) this;
         gentleStart$protectDrops = player.isDeadOrDying()
-                && input.getBooleanOr("gentle-start-mod:protect_death_drops",
-                        input.getBooleanOr("newcomer-protection:protect_death_drops", false));
+                && input.getBooleanOr("gentle-start-mod:protect_death_drops", false);
         gentleStart$death = player.isDeadOrDying()
-                ? input.read("gentle-start-mod:death", DeathSnapshot.CODEC)
-                        .or(() -> input.read("newcomer-protection:death", DeathSnapshot.CODEC)).orElseGet(() -> {
-                    // Preserve pending deaths saved by version 0.1.
-                    boolean items = input.getBooleanOr("newcomer-protection:keep_inventory", false);
-                    boolean experience = input.getBooleanOr("newcomer-protection:keep_experience", false);
-                    return new DeathSnapshot(items ? IntStream.range(0, player.getInventory().getContainerSize()).boxed().toList()
-                            : java.util.List.of(), experience ? 1 : 0, items || experience,
-                            player.experienceLevel, player.totalExperience, player.experienceProgress, player.getScore());
-                }) : DeathSnapshot.NONE;
+                ? input.read("gentle-start-mod:death", DeathSnapshot.CODEC).orElse(DeathSnapshot.NONE)
+                : DeathSnapshot.NONE;
     }
 
     @Inject(method = {"setExperiencePoints", "setExperienceLevels"}, at = @At("RETURN"))

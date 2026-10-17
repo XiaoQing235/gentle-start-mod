@@ -41,24 +41,6 @@ public class DeathDropGameTests {
     }
 
     @GameTest
-    public void previousNamespaceDropMarkerStillLoads(GameTestHelper test) {
-        ItemEntity item = new ItemEntity(test.getLevel(), 0, 2, 0, new ItemStack(Items.DIAMOND));
-        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
-        item.saveWithoutId(output);
-        var tag = output.buildResult();
-        tag.remove("gentle-start-mod:death_drop");
-        tag.putBoolean("newcomer-protection:death_drop", true);
-        tag.putShort("Age", (short)-1234);
-        item.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-        test.assertTrue(protectedDrop(item), "Old drop marker remains protected");
-        test.assertValueEqual(item.getAge(), -1234, "Migration does not refresh lifetime");
-        tag.putBoolean("gentle-start-mod:death_drop", false);
-        item.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-        test.assertFalse(protectedDrop(item), "New marker takes precedence");
-        test.succeed();
-    }
-
-    @GameTest
     public void onlyActualDeathDropsReceiveExtendedLifetime(GameTestHelper test) {
         withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}},"
                 + "\"deathDrops\":{\"minutes\":-1}}"), () -> {

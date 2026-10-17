@@ -2,8 +2,6 @@
 
 项目与 Mod ID：`gentle-start-mod`。命令入口：`/gentlestart`。
 
-从 Newcomer Protection 升级时，请先停止服务器并移除旧版 Jar，再安装 Gentle Start，不要同时加载两个版本。首次启动时，若新文件不存在，会将 `config/newcomer-protection.json` 和世界的 `data/newcomer-protection-state.json` 分别复制到同目录的 `gentle-start-mod.json`、`gentle-start-mod-state.json`；旧文件保留作备份，新文件已存在时以新文件为准。后续只编辑新文件，并将命令脚本中的 `/newcomer` 更新为 `/gentlestart`。已有玩家死亡快照和掉落物保护标记仍可读取，后续保存使用新命名空间。
-
 Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置新人保护，原版客户端即可加入。
 
 ## 功能与计时
@@ -85,9 +83,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 }
 ```
 
-未知字段、UUID、物品、效果、标签、进度 ID，以及无效比例、次数或槽位会明确报错。已有 0.1 配置中的秒数、保包和经验开关、效果列表会被识别并在内存中转换；读取不会覆盖旧文件，后续管理员命令保存时写入新格式。
-
-读取 0.2 配置文件时，会把旧 `revive.invulnerabilitySeconds` 转为独立的 `respawnProtection.durationSeconds`，并导入原先的期限与取消条件，包含 UUID 对默认规则的覆盖。显式填写的新 `respawnProtection` 字段优先。文件读取不会自动回写；管理员保存后采用新格式。新格式的 `revive` 和管理命令不再接受 `invulnerabilitySeconds`。
+未知字段、UUID、物品、效果、标签、进度 ID，以及无效比例、次数或槽位会明确报错。
 
 ## 各功能的规则
 
@@ -119,7 +115,7 @@ Minecraft Java 26.2 的纯服务端 Fabric Mod。按 UUID 为每个玩家配置�
 
 `revive.uses` 为总可用次数：-1 不限，0 不提供免死，正数为次数上限。用过的次数按 UUID 随世界保存，不会因死亡、重连或正常重启刷新。
 
-`revive.health` 是免死后恢复到的生命值，默认 10（原版 5 颗心），支持大于 0 的有限小数；超过玩家当前最大生命时取最大生命。它是恢复后的绝对血量，不是增加的血量或百分比。旧配置省略此字段时仍恢复到 10。
+`revive.health` 是免死后恢复到的生命值，默认 10（原版 5 颗心），支持大于 0 的有限小数；超过玩家当前最大生命时取最大生命。它是恢复后的绝对血量，不是增加的血量或百分比。省略此字段时恢复到 10。
 
 普通致命伤害先走原版不死图腾；没有图腾保住生命时才使用本模组次数。免死会恢复到配置血量、清除燃烧、冻结积累和摔落距离，保持原地，并给予 `revive.effects` 配置的效果。原版绕过无敌的特殊伤害不触发免死，包括 `/kill` 和虚空。
 
