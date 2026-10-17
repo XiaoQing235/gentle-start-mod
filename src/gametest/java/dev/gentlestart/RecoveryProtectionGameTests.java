@@ -77,6 +77,7 @@ public class RecoveryProtectionGameTests {
             var id = java.util.UUID.randomUUID();
             states.revive(id, 120);
             states.protectRespawn(id, 240);
+            test.assertTrue(states.save(), "Explicit save flushes pending state");
             var loaded = new PlayerStates(file).get(id);
             test.assertValueEqual(loaded.revivesUsed(), 1, "Charge usage persists");
             test.assertValueEqual(loaded.reviveInvulnerableUntil(), 120L, "Revive deadline persists independently");

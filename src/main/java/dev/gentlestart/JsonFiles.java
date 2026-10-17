@@ -27,15 +27,14 @@ final class JsonFiles {
             Files.writeString(temporary, contents);
             Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         } catch (IOException exception) {
-            throw new IllegalStateException("Cannot save " + file.getFileName(), exception);
-        } finally {
             if (temporary != null) {
                 try {
                     Files.deleteIfExists(temporary);
-                } catch (IOException exception) {
-                    throw new IllegalStateException("Cannot remove temporary configuration file", exception);
+                } catch (IOException cleanupFailure) {
+                    exception.addSuppressed(cleanupFailure);
                 }
             }
+            throw new IllegalStateException("Cannot save " + file.getFileName(), exception);
         }
     }
 }

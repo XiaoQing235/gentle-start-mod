@@ -164,7 +164,6 @@ public final class ProtectionEngine {
             }
         }
         if (changed) {
-            states.save();
             checkConditions(player, ConditionChange.HISTORY);
         }
     }
@@ -229,9 +228,8 @@ public final class ProtectionEngine {
         if (required.isEmpty()) {
             return;
         }
-        boolean changed = false;
         for (String condition : observedNow) {
-            changed |= states.observe(id, feature.id() + ":" + condition);
+            states.observe(id, feature.id() + ":" + condition);
         }
         var observed = states.get(id).observed();
         boolean triggered = cancel.requireAll()
@@ -241,8 +239,6 @@ public final class ProtectionEngine {
             states.cancel(id, feature, "auto: " + String.join(", ", required.stream()
                     .filter(condition -> observed.contains(feature.id() + ":" + condition)).toList()));
             player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.id() + " 已因达到取消条件而结束。"));
-        } else if (changed) {
-            states.save();
         }
     }
 

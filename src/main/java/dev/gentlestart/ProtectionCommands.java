@@ -151,19 +151,19 @@ public final class ProtectionCommands {
             for (Feature selected : features(context)) {
                 engine().states().cancel(uuid(context), selected, "admin: " + context.getSource().getTextName());
             }
-            reply(context, "保护已取消并保存。", true);
+            reply(context, "保护已取消；玩家状态已排队保存。", true);
             return 1;
         }))));
         player.then(Commands.literal("reset").then(feature(true).executes(guard(context -> {
             String selected = StringArgumentType.getString(context, "feature");
             engine().states().reset(uuid(context), selected.equals("all") ? null : Feature.parse(selected));
             recheckPlayer(context, uuid(context));
-            reply(context, "取消状态和对应条件历史已重置；当前仍满足的自动取消条件会再次生效。", true);
+            reply(context, "取消状态和对应条件历史已重置并排队保存；当前仍满足的自动取消条件会再次生效。", true);
             return 1;
         }))));
         player.then(Commands.literal("revives").then(Commands.argument("used", IntegerArgumentType.integer(0)).executes(guard(context -> {
             engine().states().setRevivesUsed(uuid(context), IntegerArgumentType.getInteger(context, "used"));
-            reply(context, "已使用的免死次数已保存。", true);
+            reply(context, "已使用的免死次数已更新并排队保存。", true);
             return 1;
         }))));
         admin.then(Commands.literal("player").then(player));

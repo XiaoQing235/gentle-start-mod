@@ -15,8 +15,17 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Collections;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import net.minecraft.util.Util;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public final class PlayerStates {
+    private static final Logger LOGGER = LoggerFactory.getLogger("gentle-start-mod");
+    private static final State EMPTY = new State();
+
     public static final class State {
         private final Map<Feature, String> cancelled = new EnumMap<>(Feature.class);
         private final Set<String> observed = new HashSet<>();
@@ -24,12 +33,28 @@ public final class PlayerStates {
         private long invulnerableUntil;
         private long reviveInvulnerableUntil;
 
+        private State() {
+        }
+
+        private State(State other) {
+            cancelled.putAll(other.cancelled);
+            observed.addAll(other.observed);
+            revivesUsed = other.revivesUsed;
+            invulnerableUntil = other.invulnerableUntil;
+            reviveInvulnerableUntil = other.reviveInvulnerableUntil;
+        }
+
+        private boolean empty() {
+            return cancelled.isEmpty() && observed.isEmpty() && revivesUsed == 0
+                    && invulnerableUntil == 0 && reviveInvulnerableUntil == 0;
+        }
+
         public String cancellation(Feature feature) {
             return cancelled.get(feature);
         }
 
         public Set<String> observed() {
-            return Set.copyOf(observed);
+            return Collections.unmodifiableSet(observed);
         }
 
         public int revivesUsed() {
@@ -47,6 +72,9 @@ public final class PlayerStates {
 
     private final Path file;
     private final Map<UUID, State> players = new HashMap<>();
+    private boolean dirty;
+    private boolean saveFailed;
+    private CompletableFuture<Void> pendingSave;
 
     public PlayerStates(Path file) {
         this.file = file;
@@ -66,7 +94,7 @@ public final class PlayerStates {
                 state.observed.addAll(Codec.STRING.listOf().parse(JsonOps.INSTANCE, data.get("observed")).getOrThrow());
                 data.getAsJsonObject("cancelled").entrySet().forEach(cancelled -> state.cancelled.put(
                         Feature.parse(cancelled.getKey()), Codec.STRING.parse(JsonOps.INSTANCE, cancelled.getValue()).getOrThrow()));
-                players.put(id, state);
+                if (!state.empty()) players.put(id, state);
             }
         } catch (IOException | RuntimeException exception) {
             throw new IllegalStateException("Cannot load Gentle Start player state", exception);
@@ -74,49 +102,75 @@ public final class PlayerStates {
     }
 
     public State get(UUID id) {
-        return players.computeIfAbsent(id, ignored -> new State());
+        return players.getOrDefault(id, EMPTY);
+    }
+
+    // Published states are never mutated: the I/O worker can safely serialize a shallow map snapshot.
+    private void put(UUID id, State state) {
+        if (state.empty()) players.remove(id);
+        else players.put(id, state);
+        dirty = true;
     }
 
     public void cancel(UUID id, Feature feature, String reason) {
-        if (get(id).cancelled.putIfAbsent(feature, reason) == null) {
+        if (get(id).cancellation(feature) == null) {
+            State state = new State(get(id));
+            state.cancelled.put(feature, reason);
             if (feature == Feature.RESPAWN_PROTECTION) {
-                get(id).invulnerableUntil = 0;
+                state.invulnerableUntil = 0;
             }
             if (feature == Feature.REVIVE) {
-                get(id).reviveInvulnerableUntil = 0;
+                state.reviveInvulnerableUntil = 0;
             }
-            save();
+            put(id, state);
         }
     }
 
     public boolean observe(UUID id, String condition) {
-        return get(id).observed.add(condition);
+        if (get(id).observed.contains(condition)) return false;
+        State state = new State(get(id));
+        state.observed.add(condition);
+        put(id, state);
+        return true;
     }
 
     public void revive(UUID id, long invulnerableUntil) {
-        State state = get(id);
+        State state = new State(get(id));
         state.revivesUsed = Math.addExact(state.revivesUsed, 1);
         state.reviveInvulnerableUntil = invulnerableUntil;
-        save();
+        put(id, state);
     }
 
     public void protectRespawn(UUID id, long invulnerableUntil) {
-        get(id).invulnerableUntil = invulnerableUntil;
-        save();
+        if (get(id).invulnerableUntil == invulnerableUntil) return;
+        State state = new State(get(id));
+        state.invulnerableUntil = invulnerableUntil;
+        put(id, state);
     }
 
     public void endReviveProtection(UUID id) {
-        State state = get(id);
-        if (state.reviveInvulnerableUntil != 0) {
+        if (get(id).reviveInvulnerableUntil != 0) {
+            State state = new State(get(id));
             state.reviveInvulnerableUntil = 0;
-            save();
+            put(id, state);
         }
     }
 
+    public void endInvulnerability(UUID id) {
+        if (get(id).invulnerableUntil == 0 && get(id).reviveInvulnerableUntil == 0) return;
+        State state = new State(get(id));
+        state.invulnerableUntil = 0;
+        state.reviveInvulnerableUntil = 0;
+        put(id, state);
+    }
+
     public void reset(UUID id, Feature feature) {
-        State state = get(id);
+        if (!players.containsKey(id)) return;
+        State state = new State(get(id));
         if (feature == null) {
             players.remove(id);
+            dirty = true;
+            return;
         } else {
             state.cancelled.remove(feature);
             // Condition history is reset only for this feature; other protections keep their history.
@@ -129,20 +183,58 @@ public final class PlayerStates {
                 state.invulnerableUntil = 0;
             }
         }
-        save();
+        put(id, state);
     }
 
     public void setRevivesUsed(UUID id, int used) {
         if (used < 0) {
             throw new IllegalArgumentException("Used revives cannot be negative");
         }
-        get(id).revivesUsed = used;
-        save();
+        if (get(id).revivesUsed == used) return;
+        State state = new State(get(id));
+        state.revivesUsed = used;
+        put(id, state);
     }
 
-    public void save() {
+    public boolean hasPendingChanges() {
+        return dirty || pendingSave != null;
+    }
+
+    /** Called on the server thread; at most one write is in flight, and clean state does no work. */
+    public void saveAsync() {
+        if (pendingSave != null && pendingSave.isDone()) finishSave();
+        if (pendingSave == null && dirty) {
+            Map<UUID, State> snapshot = Map.copyOf(players);
+            pendingSave = CompletableFuture.runAsync(() -> write(snapshot), Util.ioPool());
+            dirty = false;
+        }
+    }
+
+    /** Explicit world saves and shutdown wait for the latest state, including mutations during an older write. */
+    public boolean save() {
+        if (pendingSave != null) finishSave();
+        saveAsync();
+        if (pendingSave != null) finishSave();
+        return !dirty;
+    }
+
+    private void finishSave() {
+        try {
+            pendingSave.join();
+            if (saveFailed) LOGGER.info("Gentle Start player state persistence recovered");
+            saveFailed = false;
+        } catch (CompletionException exception) {
+            dirty = true;
+            if (!saveFailed) LOGGER.error("Cannot save Gentle Start player state; changes remain pending and will be retried", exception.getCause());
+            saveFailed = true;
+        } finally {
+            pendingSave = null;
+        }
+    }
+
+    private void write(Map<UUID, State> snapshot) {
         JsonObject root = new JsonObject();
-        players.forEach((id, state) -> {
+        snapshot.forEach((id, state) -> {
             JsonObject data = new JsonObject();
             data.addProperty("revivesUsed", state.revivesUsed);
             data.addProperty("invulnerableUntil", state.invulnerableUntil);

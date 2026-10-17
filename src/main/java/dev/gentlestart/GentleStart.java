@@ -38,7 +38,13 @@ public final class GentleStart implements DedicatedServerModInitializer {
                     server.getWorldPath(LevelResource.ROOT).resolve("data/gentle-start-mod-state.json"));
             LOGGER.info("Gentle Start loaded with {} UUID overrides", engine.config().configuredPlayers().size());
         });
-        ServerLifecycleEvents.SERVER_STOPPING.register(server -> engine.states().save());
+        ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            if (!engine.states().save()) LOGGER.error("Gentle Start is stopping with unsaved player state; check storage access before restarting");
+        });
+        ServerLifecycleEvents.BEFORE_SAVE.register((server, flush, force) -> {
+            if (flush) engine.states().save();
+            else engine.states().saveAsync();
+        });
         ServerLifecycleEvents.SERVER_STOPPED.register(server -> engine = null);
         ServerLifecycleEvents.END_DATA_PACK_RELOAD.register((server, resourceManager, success) -> {
             if (success) {
@@ -64,6 +70,7 @@ public final class GentleStart implements DedicatedServerModInitializer {
             }
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
+            if (server.getTickCount() % 100 == 0) engine.states().saveAsync();
             engine.checkNextPlayers(server.getPlayerList().getPlayers());
             for (ServerPlayer player : server.getPlayerList().getPlayers()) {
                 if (player.tickCount % 20 == 0) {

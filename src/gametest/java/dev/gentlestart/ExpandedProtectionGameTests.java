@@ -274,6 +274,7 @@ public class ExpandedProtectionGameTests {
             player.invulnerableTime = 0;
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
             test.assertTrue(player.isDeadOrDying(), "Exhausted charges allow normal death");
+            test.assertTrue(engine().states().save(), "Pending state reaches disk");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
                     .resolve("data/gentle-start-mod-state.json"));
             test.assertValueEqual(reloaded.get(player.getUUID()).revivesUsed(), 1, "Charge usage persists to disk");
@@ -399,6 +400,7 @@ public class ExpandedProtectionGameTests {
             player.setExperienceLevels(10);
             player.setExperienceLevels(0);
             test.assertFalse(engine().active(player, Feature.EXPERIENCE), "Spending XP does not regain protection");
+            test.assertTrue(engine().states().save(), "Pending state reaches disk");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
                     .resolve("data/gentle-start-mod-state.json"));
             test.assertTrue(reloaded.get(player.getUUID()).cancellation(Feature.INVENTORY) != null, "Cancellation persists to disk");
