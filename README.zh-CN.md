@@ -201,7 +201,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 可直接查看 `/gentlestart admin ui defaults protectDeathDrops` 或 `/gentlestart admin ui player <UUID> protectDeathDrops`，末尾可加页码。控制台保留原有文本管理命令；所有聊天按钮仍通过命令检查管理员权限。
 
-玩家使用 `/gentlestart status` 查看自己的保护状态，使用 `/gentlestart help` 查看帮助。
+玩家使用 `/gentlestart status` 查看自己的保护状态，使用 `/gentlestart help` 查看帮助。状态统一使用中文功能名和配置名称，并区分生效、过期、取消、禁用、旁观模式不适用及免死次数用尽；离线查询不推测剩余时间。
 
 管理员命令需要 OP 2 级权限，也可以从服务器控制台执行。命令支持 Tab 补全。
 
@@ -230,6 +230,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | `ui` | 显示聊天栏交互管理菜单 |
 | `ui set <defaults或UUID> <功能> <字段路径> <JSON值>` | 只修改一个字段，例如 `protectDeathDrops lifetimeSeconds 600` 或 `keepInventory cancel.experienceLevel 30` |
 | `settings <true或false> <每tick人数>` | 一次保存全局开关和周期检查人数 |
+| `checksPerTick <每tick人数>` | 仅修改轮询人数，不改变全局开关；聊天菜单的两个入口分别只修改对应字段 |
 | `defaults set <功能> <分钟>` | 修改默认累计时间阈值 |
 | `defaults rule <功能> <JSON对象>` | 合并修改默认规则的任意受支持字段 |
 | `player <UUID>` | 查看该玩家各项期限、取消原因和免死次数；离线时不虚构剩余时间 |
@@ -266,7 +267,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 
 **开启 PvP 保护后还能攻击别人吗？**
 
-`removeOnAttack: true` 时，主动攻击其他玩家会永久解除自己的 PvP 保护；设为 `false` 时，受保护玩家也无法伤害别人。无法直接归属玩家的岩浆、点火和机关伤害不保证被识别为 PvP。
+`removeOnAttack: true` 时，主动攻击其他玩家会永久解除自己的 PvP 保护；设为 `false` 时，受保护玩家也无法伤害别人。归属判定检查伤害来源的致因实体、直接实体及原版可追踪实体/驯服实体的主人，例如箭、宠物攻击和有归属的爆炸。参与这种玩家攻击时，攻击者当前的免死无敌和重生无敌也会结束（即使对方挡下伤害），但不取消之后的免死/重生保护资格；受害者自己的保护不受影响。无法归属玩家的岩浆、点火和机关伤害仍不保证被识别为 PvP。
 
 **保护结束后，药水效果会立即消失吗？**
 

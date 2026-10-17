@@ -26,9 +26,9 @@ final class AdminChat {
     static List<Component> home(ProtectionConfig config) {
         return List.of(title("管理"),
                 Component.literal("全局状态：" + (config.enabled() ? "启用 " : "停用 "))
-                        .append(button("切换", "settings " + !config.enabled() + " " + config.playersPerTick(), false, "立即切换全局开关")),
+                        .append(button("切换", "enabled " + !config.enabled(), false, "只修改全局开关")),
                 Component.literal("每 tick 时间条件检查人数：" + config.playersPerTick() + " ")
-                        .append(button("编辑", "settings " + config.enabled() + " " + config.playersPerTick(), true, "在聊天输入栏修改最后的人数，按回车保存")),
+                        .append(button("编辑", "checksPerTick " + config.playersPerTick(), true, "只修改轮询人数，按回车保存")),
                 button("默认规则", "ui defaults", false, "设置全服默认保护规则")
                         .append(button("玩家覆盖", "ui players", false, "选择在线玩家或已有配置的 UUID"))
                         .append(button("重载文件", "reload", false, "从配置文件重新加载规则"))
@@ -42,7 +42,7 @@ final class AdminChat {
         for (Feature feature : Feature.values()) {
             double minutes = profile.window(feature).minutes();
             String state = minutes == 0 ? "关闭" : minutes < 0 ? "长期" : minutes + " 分钟";
-            lines.add(button(featureName(feature), scope(target) + " " + feature.configName(), false, "查看并编辑 " + feature.configName())
+            lines.add(button(feature.displayName(), scope(target) + " " + feature.configName(), false, "查看并编辑 " + feature.configName())
                     .append(Component.literal(" " + state).withStyle(ChatFormatting.GRAY)));
         }
         if (target != null) {
@@ -57,7 +57,7 @@ final class AdminChat {
         var fields = fields(config, target, feature);
         int pages = Math.max(1, (fields.size() + PAGE_SIZE - 1) / PAGE_SIZE);
         int current = Math.min(page, pages);
-        lines.add(title((target == null ? "默认 · " : "玩家 · ") + featureName(feature) + " " + current + "/" + pages));
+        lines.add(title((target == null ? "默认 · " : "玩家 " + target + " · ") + feature.displayName() + " " + current + "/" + pages));
         lines.add(Component.literal("点击编辑预填命令，修改末尾值后回车；每次只保存这一项。悬停查看说明。")
                 .withStyle(ChatFormatting.GRAY));
         String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.configName() + " ";
@@ -166,18 +166,4 @@ final class AdminChat {
         };
     }
 
-    private static String featureName(Feature feature) {
-        return switch (feature) {
-            case INVENTORY -> "物品保留";
-            case EXPERIENCE -> "经验保留";
-            case SCORE -> "分数保留";
-            case REVIVE -> "原地免死";
-            case EFFECTS -> "持续效果";
-            case PVP -> "PvP 保护";
-            case DAMAGE_REDUCTION -> "伤害减免";
-            case MOB_RANGE -> "怪物感知范围";
-            case RESPAWN_PROTECTION -> "重生无敌";
-            case DEATH_DROPS -> "死亡掉落物保护";
-        };
-    }
 }

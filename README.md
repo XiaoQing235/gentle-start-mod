@@ -201,7 +201,7 @@ Run `/gentlestart admin` or `/gentlestart admin ui` in-game as an administrator 
 
 Open `/gentlestart admin ui defaults protectDeathDrops` or `/gentlestart admin ui player <UUID> protectDeathDrops` directly, optionally followed by a page number. Text administration commands remain available from the console. All chat buttons execute commands that check administrator permissions. In-game messages and menu labels are currently in Chinese.
 
-Players can use `/gentlestart status` to view their own protection and `/gentlestart help` for help.
+Players can use `/gentlestart status` to view their own protection and `/gentlestart help` for help. Status uses consistent feature labels and configuration names, distinguishing active, expired, cancelled, disabled, spectator-inapplicable, and exhausted death-prevention states. Offline queries do not guess remaining playtime.
 
 Administrator commands require operator permission level 2 and can also be run from the server console. Commands support Tab completion.
 
@@ -230,6 +230,7 @@ Administrator commands require operator permission level 2 and can also be run f
 | `ui` | Show the interactive chat menu |
 | `ui set <defaults-or-UUID> <feature> <field-path> <JSON-value>` | Edit one field, such as `protectDeathDrops lifetimeSeconds 600` or `keepInventory cancel.experienceLevel 30` |
 | `settings <true-or-false> <players-per-tick>` | Save the global switch and periodic-check player budget together |
+| `checksPerTick <players-per-tick>` | Change only the polling budget; the two chat controls each update their own field |
 | `defaults set <feature> <minutes>` | Change a default cumulative playtime threshold |
 | `defaults rule <feature> <JSON-object>` | Merge supported fields into a default rule |
 | `player <UUID>` | Show thresholds, cancellation reasons, and consumed uses; remaining time is not invented for offline players |
@@ -265,7 +266,7 @@ No. The void, `/kill`, and other damage that bypasses invulnerability remain eff
 
 **Can protected players still attack others?**
 
-With `removeOnAttack: true`, attacking another player permanently ends the attacker's PvP protection. With `false`, protected players cannot damage others either. Lava, fire, and traps that cannot be attributed directly to a player are not guaranteed to count as PvP.
+With `removeOnAttack: true`, attacking another player permanently ends the attacker's PvP protection. With `false`, protected players cannot damage others either. Attribution checks the causing entity, the direct entity, and vanilla traceable/tamed entity ownership, covering arrows, pet attacks, and attributed explosions. Such attacks also end the attacker's current death-prevention and respawn invulnerability, even if the victim blocks the damage. Future death-prevention and respawn eligibility is retained, and the victim's own protection is unaffected. Lava, fire, and traps without player attribution are still not guaranteed to count as PvP.
 
 **Do effects disappear immediately when protection ends?**
 

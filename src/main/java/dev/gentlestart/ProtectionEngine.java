@@ -3,6 +3,7 @@ package dev.gentlestart;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashSet;
 import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -14,14 +15,12 @@ import net.minecraft.stats.Stats;
 import net.minecraft.tags.TagKey;
 import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.world.damagesource.DamageSource;
-import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.TamableAnimal;
+import net.minecraft.world.entity.OwnableEntity;
+import net.minecraft.world.entity.TraceableEntity;
 import net.minecraft.world.entity.monster.Enemy;
-import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
 
 public final class ProtectionEngine {
@@ -238,7 +237,7 @@ public final class ProtectionEngine {
         if (triggered) {
             states.cancel(id, feature, "auto: " + String.join(", ", required.stream()
                     .filter(condition -> observed.contains(feature.id() + ":" + condition)).toList()));
-            player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.id() + " 已因达到取消条件而结束。"));
+            player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.displayName() + "（" + feature.configName() + "）已因达到取消条件而结束。"));
         }
     }
 
@@ -272,6 +271,7 @@ public final class ProtectionEngine {
         if (entity instanceof ServerPlayer victim) {
             ServerPlayer attacker = attacker(source);
             if (attacker != null && attacker != victim) {
+                states.endInvulnerability(attacker.getUUID());
                 if (active(attacker, Feature.PVP)) {
                     if (profile(attacker).pvp().removeOnAttack()) {
                         states.cancel(attacker.getUUID(), Feature.PVP, "offensive player damage");
@@ -343,13 +343,21 @@ public final class ProtectionEngine {
     }
 
     private static ServerPlayer attacker(DamageSource source) {
-        Entity attacker = source.getEntity();
-        if (attacker == null && source.getDirectEntity() instanceof Projectile projectile) {
-            attacker = projectile.getOwner();
+        ServerPlayer player = responsiblePlayer(source.getEntity());
+        return player != null ? player : responsiblePlayer(source.getDirectEntity());
+    }
+
+    private static ServerPlayer responsiblePlayer(Entity entity) {
+        if (entity instanceof ServerPlayer player) return player;
+        if (!(entity instanceof OwnableEntity) && !(entity instanceof TraceableEntity)) return null;
+        // Owner chains may be supplied by other mods; stop cycles rather than recursing through untrusted ownership.
+        var visited = new HashSet<Entity>();
+        while (entity != null && visited.add(entity)) {
+            if (entity instanceof ServerPlayer player) return player;
+            if (entity instanceof OwnableEntity owned) entity = owned.getRootOwner();
+            else if (entity instanceof TraceableEntity traceable) entity = traceable.getOwner();
+            else return null;
         }
-        if (attacker instanceof TamableAnimal tame) {
-            attacker = tame.getOwner();
-        }
-        return attacker instanceof ServerPlayer player ? player : null;
+        return null;
     }
 }

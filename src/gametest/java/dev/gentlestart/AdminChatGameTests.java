@@ -19,6 +19,48 @@ import net.minecraft.network.chat.ComponentSerialization;
 
 public class AdminChatGameTests {
     @GameTest
+    public void oldGlobalButtonsDoNotOverwriteOtherSettings(GameTestHelper test) {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
+            var engine = GentleStart.engine();
+            var admin = test.getLevel().getServer().createCommandSourceStack();
+            var oldButtons = clicks(AdminChat.home(engine.config()));
+            String toggle = oldButtons.stream().map(AdminChatGameTests::command)
+                    .filter(value -> value.startsWith("/gentlestart admin enabled ")).findFirst().orElseThrow();
+            String budget = oldButtons.stream().map(AdminChatGameTests::command)
+                    .filter(value -> value.startsWith("/gentlestart admin checksPerTick ")).findFirst().orElseThrow();
+            execute(test, "/gentlestart admin settings true 7", admin);
+            execute(test, toggle, admin);
+            test.assertValueEqual(engine.config().playersPerTick(), 7, "Old toggle does not revert a newer polling budget");
+            test.assertFalse(engine.config().enabled(), "Toggle disables the mod");
+            execute(test, budget.substring(0, budget.lastIndexOf(' ') + 1) + "3", admin);
+            test.assertFalse(engine.config().enabled(), "Old budget editor does not re-enable the mod");
+            test.assertValueEqual(engine.config().playersPerTick(), 3, "Budget changes independently");
+            reject(test, "/gentlestart admin checksPerTick 3", player(test, 0).createCommandSourceStack());
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void statusDistinguishesEffectiveExpiredSpectatorAndExhausted(GameTestHelper test) {
+        withConfig(test, settings("{\"inventory\":{\"minutes\":1},\"revive\":{\"minutes\":-1,\"uses\":1}}"), () -> {
+            var viewer = player(test, 0);
+            UUID id = viewer.getUUID();
+            test.assertTrue(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY).startsWith("生效中"), "Active state is explicit");
+            viewer.setGameMode(net.minecraft.world.level.GameType.SPECTATOR);
+            test.assertValueEqual(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY), "旁观模式不适用", "Spectator is not protected");
+            viewer.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+            viewer.getStats().setValue(viewer, net.minecraft.stats.Stats.CUSTOM.get(net.minecraft.stats.Stats.PLAY_TIME), 1200);
+            test.assertValueEqual(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY), "已过期", "Expired is not zero seconds active");
+            GentleStart.engine().states().setRevivesUsed(id, 1);
+            test.assertValueEqual(ProtectionCommands.featureStatus(id, viewer, Feature.REVIVE), "免死次数已用尽", "Unlimited window does not imply available charges");
+            test.assertTrue(ProtectionCommands.featureStatus(UUID.randomUUID(), null, Feature.INVENTORY).contains("待上线核对"), "Offline state is not guessed");
+            GentleStart.engine().states().cancel(id, Feature.INVENTORY, "offensive player damage");
+            test.assertTrue(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY).contains("参与玩家攻击"), "Known cancellation reasons are human-readable");
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void chatButtonsEditOnlySelectedFieldAndPreserveInheritance(GameTestHelper test) {
         withConfig(test, ProtectionConfig.defaults(), () -> {
             var engine = GentleStart.engine();

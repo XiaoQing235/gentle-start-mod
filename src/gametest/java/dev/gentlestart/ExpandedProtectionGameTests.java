@@ -353,6 +353,56 @@ public class ExpandedProtectionGameTests {
     }
 
     @GameTest
+    public void indirectPlayerSourcesEndOnlyAttackersCurrentImmunity(GameTestHelper test) {
+        withConfig(test, settings("{\"pvp\":{\"minutes\":-1},\"revive\":{\"minutes\":-1},\"respawnProtection\":{\"minutes\":-1}}"), () -> {
+            ServerPlayer attacker = player(test, 0);
+            ServerPlayer victim = player(test, 0);
+            var wolf = test.spawn(EntityTypes.WOLF, 1, 1, 1);
+            wolf.tame(attacker);
+            Arrow arrow = new Arrow(test.getLevel(), attacker, new ItemStack(Items.ARROW), null);
+            Arrow petArrow = new Arrow(test.getLevel(), wolf, new ItemStack(Items.ARROW), null);
+            var unrelated = test.spawn(EntityTypes.ZOMBIE, 3, 1, 3);
+            var sources = List.of(victim.damageSources().playerAttack(attacker),
+                    victim.damageSources().arrow(arrow, null),
+                    victim.damageSources().arrow(arrow, unrelated),
+                    victim.damageSources().mobAttack(wolf),
+                    victim.damageSources().arrow(petArrow, null),
+                    new net.minecraft.world.damagesource.DamageSource(victim.damageSources().generic().typeHolder(), attacker, unrelated));
+            for (var source : sources) {
+                engine().states().reset(attacker.getUUID(), Feature.PVP);
+                long until = test.getLevel().getServer().overworld().getGameTime() + 100;
+                engine().states().revive(attacker.getUUID(), until);
+                engine().states().protectRespawn(attacker.getUUID(), until);
+                engine().states().protectRespawn(victim.getUUID(), until);
+                victim.hurtServer(test.getLevel(), source, 6);
+                test.assertValueEqual(victim.getHealth(), 20.0F, "Victim remains protected for every player-owned source");
+                test.assertValueEqual(engine().states().get(attacker.getUUID()).reviveInvulnerableUntil(), 0L, "Attack ends revive immunity");
+                test.assertValueEqual(engine().states().get(attacker.getUUID()).invulnerableUntil(), 0L, "Attack ends respawn immunity");
+                test.assertTrue(engine().respawnInvulnerabilityTicks(victim) > 0, "Victim immunity is untouched");
+                test.assertFalse(engine().active(attacker, Feature.PVP), "Indirect attack cancels attacker's PvP protection");
+                test.assertTrue(engine().active(attacker, Feature.REVIVE), "Attack does not revoke future revive eligibility");
+            }
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void offensiveImmunityEndsEvenWhenPvpProtectionIsDisabled(GameTestHelper test) {
+        withConfig(test, settings("{\"revive\":{\"minutes\":-1},\"respawnProtection\":{\"minutes\":-1}}"), () -> {
+            var attacker = player(test, 0);
+            var victim = player(test, 0);
+            long until = test.getLevel().getServer().overworld().getGameTime() + 100;
+            engine().states().revive(attacker.getUUID(), until);
+            engine().states().protectRespawn(attacker.getUUID(), until);
+            victim.hurtServer(test.getLevel(), victim.damageSources().playerAttack(attacker), 4);
+            test.assertTrue(victim.getHealth() < 20, "Unprotected victim takes vanilla damage");
+            test.assertValueEqual(engine().reviveInvulnerabilityTicks(attacker), 0L, "Offense ends revive immunity without a PvP window");
+            test.assertValueEqual(engine().respawnInvulnerabilityTicks(attacker), 0L, "Offense ends respawn immunity without a PvP window");
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void damageReductionScalesIncomingDamage(GameTestHelper test) {
         withConfig(test, settings("{\"damageReduction\":{\"minutes\":-1,\"reduction\":0.5}}"), () -> {
             ServerPlayer player = player(test, 0);

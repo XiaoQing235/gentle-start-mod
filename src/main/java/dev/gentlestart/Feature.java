@@ -32,6 +32,21 @@ public enum Feature {
         };
     }
 
+    public String displayName() {
+        return switch (this) {
+            case INVENTORY -> "物品保留";
+            case EXPERIENCE -> "经验保留";
+            case SCORE -> "分数保留";
+            case REVIVE -> "原地免死";
+            case EFFECTS -> "持续效果";
+            case PVP -> "PvP 保护";
+            case DAMAGE_REDUCTION -> "伤害减免";
+            case MOB_RANGE -> "怪物感知范围";
+            case RESPAWN_PROTECTION -> "重生无敌";
+            case DEATH_DROPS -> "死亡掉落物保护";
+        };
+    }
+
     public static Feature parse(String id) {
         return Arrays.stream(values()).filter(feature -> (feature.id.equals(id) || feature.configName().equals(id))).findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Unknown protection: " + id));

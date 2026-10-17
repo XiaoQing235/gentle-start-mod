@@ -85,7 +85,7 @@ public final class ProtectionCommands {
                     }
                     parent.add(path[path.length - 1], JsonParser.parseString(StringArgumentType.getString(context, "value")));
                     update(id, selected, patch);
-                    reply(context, "已保存 " + selected.id() + "." + field + "。", true);
+                    reply(context, "已保存 " + selected.displayName() + "（" + selected.configName() + "）." + field + "。", true);
                     return openRule(context, id, AdminChat.fieldPage(engine().config(), id, selected, field));
                 })))))));
         admin.then(ui);
@@ -116,7 +116,16 @@ public final class ProtectionCommands {
             rootJson.addProperty("enabled", BoolArgumentType.getBool(context, "value"));
             engine().replaceConfig(ProtectionConfig.parse(rootJson));
             reply(context, "全局启用状态已保存。", true);
-            return 1;
+            return context.getSource().getEntity() instanceof ServerPlayer
+                    ? chat(context, AdminChat.home(engine().config())) : 1;
+        }))));
+        admin.then(Commands.literal("checksPerTick").then(Commands.argument("value", IntegerArgumentType.integer(1)).executes(guard(context -> {
+            JsonObject document = engine().config().document();
+            document.addProperty("playersPerTick", IntegerArgumentType.getInteger(context, "value"));
+            engine().replaceConfig(ProtectionConfig.parse(document));
+            reply(context, "每 tick 轮询人数已保存。", true);
+            return context.getSource().getEntity() instanceof ServerPlayer
+                    ? chat(context, AdminChat.home(engine().config())) : 1;
         }))));
         admin.then(Commands.literal("list").executes(guard(context -> list(context, 1)))
                 .then(Commands.argument("page", IntegerArgumentType.integer(1)).executes(guard(context ->
@@ -194,7 +203,7 @@ public final class ProtectionCommands {
     }
 
     private static int adminHelp(CommandContext<CommandSourceStack> context) {
-        for (String command : List.of("ui [defaults|players|player <UUID>]", "settings <true|false> <每tick人数>",
+        for (String command : List.of("ui [defaults|players|player <UUID>]", "settings <true|false> <每tick人数>", "checksPerTick <每tick人数>",
                 "lookup <玩家名或选择器>", "list [页码]", "enabled <true|false>", "reload",
                 "defaults set <功能> <分钟>", "defaults rule <功能> <JSON对象>",
                 "player <UUID> [show|set|grant|rule|clear|cancel|reset|revives]", "copy <源UUID> <目标UUID>")) {
@@ -304,17 +313,7 @@ public final class ProtectionCommands {
         reply(context, id + (player == null ? "（离线：剩余时间需上线后计算）" : "，累计游玩 "
                 + String.format(java.util.Locale.ROOT, "%.2f", ProtectionEngine.playedTicks(player) / 1200.0) + " 分钟"), false);
         for (Feature feature : Feature.values()) {
-            var window = profile.window(feature);
-            String reason = engine().states().get(id).cancellation(feature);
-            if (player != null) {
-                engine().active(player, feature);
-                reason = engine().states().get(id).cancellation(feature);
-            }
-            String state = !engine().config().enabled() ? "全局禁用" : reason != null ? "已取消：" + reason
-                    : window.minutes() < 0 ? "长期有效" : window.minutes() == 0 ? "禁用" : player == null
-                    ? "累计阈值 " + window.minutes() + " 分钟"
-                    : "剩余 " + Math.max(0, Math.ceil((window.minutes() * 1200 - ProtectionEngine.playedTicks(player)) / 20)) + " 秒";
-            reply(context, feature.id() + ": " + state, false);
+            reply(context, feature.displayName() + "（" + feature.configName() + "）：" + featureStatus(id, player, feature), false);
         }
         var revive = profile.revive();
         reply(context, "免死已使用 " + engine().states().get(id).revivesUsed() + "，总次数 "
@@ -324,6 +323,36 @@ public final class ProtectionCommands {
             reply(context, "本次重生无敌剩余 " + Math.ceil(engine().respawnInvulnerabilityTicks(player) / 20.0) + " 秒", false);
         }
         return 1;
+    }
+
+    static String featureStatus(UUID id, ServerPlayer player, Feature feature) {
+        var config = engine().config();
+        var profile = config.profile(id);
+        var window = profile.window(feature);
+        if (!config.enabled()) return "全局禁用";
+        if (window.minutes() == 0) return "禁用";
+        if (player != null) engine().active(player, feature); // Reconcile time-based cancellation before reporting it.
+        String reason = engine().states().get(id).cancellation(feature);
+        if (reason != null) {
+            if (reason.equals("offensive player damage")) reason = "参与玩家攻击";
+            else if (reason.startsWith("auto: ")) reason = "达到自动取消条件：" + reason.substring(6);
+            else if (reason.startsWith("admin: ")) reason = "管理员取消：" + reason.substring(7);
+            return "已取消（" + reason + "）";
+        }
+        if (player != null && player.isSpectator()) return "旁观模式不适用";
+        if (player != null && !window.includes(ProtectionEngine.playedTicks(player))) return "已过期";
+        if (feature == Feature.REVIVE && profile.revive().uses() >= 0
+                && engine().states().get(id).revivesUsed() >= profile.revive().uses()) return "免死次数已用尽";
+        if (feature == Feature.EXPERIENCE && profile.experience().ratio() == 0) return "不保留经验（比例为 0）";
+        if (feature == Feature.DAMAGE_REDUCTION && profile.damageReduction().reduction() == 0) return "不减伤（比例为 0）";
+        if (feature == Feature.MOB_RANGE && profile.mobRange().multiplier() == 1) return "使用原版感知范围（倍数为 1）";
+        if (feature == Feature.RESPAWN_PROTECTION && profile.respawnProtection().durationSeconds() == 0) return "不授予无敌（时长为 0）";
+        if (feature == Feature.EFFECTS && profile.effects().list().isEmpty()) return "未配置效果";
+        if (player == null) return window.minutes() < 0 ? "配置为长期；离线，当前生效状态待上线核对"
+                : "离线；累计阈值 " + window.minutes() + " 分钟，剩余时间待上线核对";
+        if (!player.isAlive()) return "当前已死亡，等待重生";
+        return window.minutes() < 0 ? "生效中（长期）" : "生效中，剩余 "
+                + (long) Math.ceil((window.minutes() * 1200 - ProtectionEngine.playedTicks(player)) / 20) + " 秒";
     }
 
     private static int list(CommandContext<CommandSourceStack> context, int page) {
