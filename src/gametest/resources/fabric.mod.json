@@ -5,7 +5,8 @@
   "environment": "server",
   "entrypoints": {
     "fabric-gametest": [
-      "dev.newcomerprotection.ProtectionGameTests"
+      "dev.newcomerprotection.ProtectionGameTests",
+      "dev.newcomerprotection.ExpandedProtectionGameTests"
     ]
   }
 }

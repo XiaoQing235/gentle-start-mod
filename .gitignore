@@ -16,6 +16,7 @@ logs/
 .vscode/
 
 # Local configuration and credentials
+config/
 .env
 .env.*
 !.env.example

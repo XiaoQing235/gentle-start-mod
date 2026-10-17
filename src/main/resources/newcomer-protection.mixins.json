@@ -4,7 +4,13 @@
   "compatibilityLevel": "JAVA_25",
   "mixins": [
     "PlayerMixin",
-    "ServerPlayerMixin"
+    "ServerPlayerMixin",
+    "LivingEntityMixin",
+    "TargetingConditionsMixin",
+    "MobMixin",
+    "InventoryMixin",
+    "InventoryChangeTriggerMixin",
+    "PlayerAdvancementsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

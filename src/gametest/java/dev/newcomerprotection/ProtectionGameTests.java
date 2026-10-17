@@ -4,7 +4,6 @@ import com.google.gson.JsonParser;
 import com.mojang.authlib.GameProfile;
 import com.mojang.serialization.JsonOps;
 import io.netty.channel.embedded.EmbeddedChannel;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -39,7 +38,7 @@ import net.minecraft.world.phys.AABB;
 public class ProtectionGameTests {
     @GameTest
     public void protectedDeathKeepsFullInventoryAndExperience(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
             player.getInventory().setSelectedSlot(2);
@@ -75,7 +74,7 @@ public class ProtectionGameTests {
 
     @GameTest
     public void thresholdAndVeteransUseVanillaDrops(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             for (int ticks : new int[]{144000, 144001}) {
                 ServerPlayer player = player(test, ticks);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
@@ -89,14 +88,14 @@ public class ProtectionGameTests {
                 test.assertTrue(respawned.getInventory().getItem(0).isEmpty(), "No inventory duplication");
                 test.assertValueEqual(respawned.experienceLevel, 0, "Vanilla XP reset");
             }
-            test.assertTrue(ProtectionConfig.DEFAULT.protects(143999), "Strict threshold includes the preceding tick");
+            test.assertTrue(ProtectionRules.Profile.DEFAULT.inventory().window().includes(143999), "Strict threshold includes the preceding tick");
         });
         test.succeed();
     }
 
     @GameTest
     public void deathDecisionSurvivesThresholdAndPlayerSave(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 143999);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 9));
             giveExperience(player);
@@ -113,7 +112,7 @@ public class ProtectionGameTests {
                     "A fresh player starts without the previous in-memory decision");
             reconnected.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(),
                     output.buildResult()));
-            test.assertFalse(NewcomerProtection.isProtected(reconnected), "Time has crossed the threshold");
+            test.assertFalse(NewcomerProtection.engine().active(reconnected, Feature.INVENTORY), "Time has crossed the threshold");
             ServerPlayer respawned = respawn(reconnected);
             test.assertValueEqual(respawned.getInventory().getItem(0).getCount(), 9, "Saved death keeps items");
             assertExperience(test, respawned);
@@ -124,7 +123,7 @@ public class ProtectionGameTests {
     @GameTest
     public void inventoryAndExperienceOptionsAreIndependent(GameTestHelper test) {
         for (boolean keepItems : new boolean[]{true, false}) {
-            withConfig(test, new ProtectionConfig(true, 7200, keepItems, !keepItems, List.of()), () -> {
+            withConfig(test, configuration("{\"inventory\":{\"minutes\":" + (keepItems ? 120 : 0) + "},\"experience\":{\"minutes\":" + (keepItems ? 0 : 120) + "},\"effects\":{\"minutes\":0}}"), () -> {
                 ServerPlayer player = player(test, 0);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
                 giveExperience(player);
@@ -143,8 +142,8 @@ public class ProtectionGameTests {
 
     @GameTest
     public void disabledAndZeroDurationDoNotProtect(GameTestHelper test) {
-        for (ProtectionConfig config : List.of(new ProtectionConfig(false, 7200, true, true, List.of()),
-                new ProtectionConfig(true, 0, true, true, List.of()))) {
+        for (ProtectionConfig config : List.of(ProtectionConfig.parse(JsonParser.parseString("{\"enabled\":false}").getAsJsonObject()),
+                configuration("{\"inventory\":{\"minutes\":0},\"experience\":{\"minutes\":0},\"score\":{\"minutes\":0},\"effects\":{\"minutes\":0}}"))) {
             withConfig(test, config, () -> {
                 ServerPlayer player = player(test, 0);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
@@ -157,7 +156,7 @@ public class ProtectionGameTests {
 
     @GameTest
     public void globalKeepInventoryStillWorks(GameTestHelper test) {
-        withConfig(test, new ProtectionConfig(false, 0, false, false, List.of()), () -> {
+        withConfig(test, ProtectionConfig.parse(JsonParser.parseString("{\"enabled\":false}").getAsJsonObject()), () -> {
             test.getLevel().getGameRules().set(GameRules.KEEP_INVENTORY, true, test.getLevel().getServer());
             ServerPlayer player = player(test, 144000);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
@@ -172,21 +171,21 @@ public class ProtectionGameTests {
 
     @GameTest
     public void effectsRefreshWithoutRemovingExternalEffects(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
             player.removeAllEffects();
-            NewcomerProtection.refreshEffects(player);
+            NewcomerProtection.engine().refreshEffects(player);
             test.assertTrue(player.hasEffect(MobEffects.NIGHT_VISION), "Configured effect applied");
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getAmplifier(), 0, "Level 1 maps to amplifier 0");
             player.removeAllEffects(); // Milk clears the effect until the next refresh.
-            NewcomerProtection.refreshEffects(player);
+            NewcomerProtection.engine().refreshEffects(player);
             test.assertTrue(player.hasEffect(MobEffects.NIGHT_VISION), "Effects return after milk");
             player.addEffect(new MobEffectInstance(MobEffects.RESISTANCE, 2400, 2));
-            NewcomerProtection.refreshEffects(player);
+            NewcomerProtection.engine().refreshEffects(player);
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getAmplifier(), 2, "Stronger potion stays active");
             player.getStats().setValue(player, Stats.CUSTOM.get(Stats.PLAY_TIME), 144000);
             player.removeEffect(MobEffects.NIGHT_VISION);
-            NewcomerProtection.refreshEffects(player);
+            NewcomerProtection.engine().refreshEffects(player);
             test.assertFalse(player.hasEffect(MobEffects.NIGHT_VISION), "No refresh at threshold");
             test.assertValueEqual(player.getEffect(MobEffects.RESISTANCE).getDuration(), 2400, "External effect remains");
         });
@@ -195,32 +194,41 @@ public class ProtectionGameTests {
 
     @GameTest
     public void invalidConfigurationFailsClearly(GameTestHelper test) {
-        for (String json : List.of("null", "[]", "{\"protectionSeconds\":-1}",
-                "{\"protectionSeconds\":9223372036854775807}", "{\"enabled\":\"yes\"}",
-                "{\"effects\":[{\"id\":\"minecraft:unknown\"}]}",
-                "{\"effects\":[{\"id\":\"minecraft:instant_health\"}]}",
-                "{\"effects\":[{\"id\":\"minecraft:speed\",\"level\":0}]}",
-                "{\"effects\":[{\"id\":\"minecraft:speed\",\"level\":257}]}")) {
-            test.assertTrue(ProtectionConfig.CODEC.parse(JsonOps.INSTANCE, JsonParser.parseString(json)).error().isPresent(),
-                    "Invalid configuration rejected: " + json);
+        for (String json : List.of("null", "[]", "{\"enabled\":\"yes\"}",
+                "{\"players\":{\"invalid-uuid\":{}}}", "{\"defaults\":{\"unknown\":{}}}",
+                "{\"defaults\":{\"inventory\":{\"minuets\":5}}}",
+                "{\"defaults\":{\"inventory\":{\"keep\":{\"slots\":[43]}}}}",
+                "{\"defaults\":{\"experience\":{\"ratio\":1.1}}}",
+                "{\"defaults\":{\"revive\":{\"uses\":-2}}}",
+                "{\"defaults\":{\"revive\":{\"uses\":1.5}}}",
+                "{\"defaults\":{\"inventory\":{\"keep\":{\"slots\":[0.5]}}}}",
+                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:speed\",\"durationSecond\":10}]}}}",
+                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:unknown\"}]}}}",
+                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:instant_health\"}]}}}",
+                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:speed\",\"level\":0}]}}}")) {
+            boolean rejected = false;
+            try {
+                ProtectionConfig.parse(JsonParser.parseString(json).getAsJsonObject());
+            } catch (RuntimeException expected) {
+                rejected = true;
+            }
+            test.assertTrue(rejected, "Invalid configuration rejected: " + json);
         }
-        ProtectionConfig config = ProtectionConfig.CODEC.parse(JsonOps.INSTANCE,
-                JsonParser.parseString("{\"protectionSeconds\":10,\"effects\":[]}")).getOrThrow();
-        test.assertTrue(config.protects(199), "Custom duration is used");
-        test.assertFalse(config.protects(200), "Custom duration ends exactly at threshold");
+        var window = configuration("{\"inventory\":{\"minutes\":1}}").defaultProfile().inventory().window();
+        test.assertTrue(window.includes(1199), "Minutes use 1200 ticks");
+        test.assertFalse(window.includes(1200), "Protection ends exactly at threshold");
         test.succeed();
     }
-
     @GameTest
     public void defaultConfigIsEditableAndInvalidFilesArePreserved(GameTestHelper test) throws Exception {
         Path directory = Files.createTempDirectory("newcomer-config-test-");
         Path file = directory.resolve("newcomer-protection.json");
         try {
-            test.assertValueEqual(ProtectionConfig.load(file), ProtectionConfig.DEFAULT, "Missing config uses defaults");
+            test.assertValueEqual(ProtectionConfig.load(file).document(), ProtectionConfig.defaults().document(), "Missing config uses defaults");
             String json = Files.readString(file);
-            test.assertTrue(json.contains("protectionSeconds") && json.contains("minecraft:night_vision")
+            test.assertTrue(json.contains("minutes") && json.contains("minecraft:night_vision")
                     && json.contains("showParticles"), "Generated config includes editable defaults");
-            test.assertValueEqual(ProtectionConfig.load(file), ProtectionConfig.DEFAULT, "Generated config round trip");
+            test.assertValueEqual(ProtectionConfig.load(file).document(), ProtectionConfig.defaults().document(), "Generated config round trip");
             Files.writeString(file, "{invalid");
             boolean rejected = false;
             try {
@@ -239,7 +247,7 @@ public class ProtectionGameTests {
 
     @GameTest
     public void openChestDeathReturnsCursorWithoutCopyingChest(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
             SimpleContainer chest = new SimpleContainer(27);
             chest.setItem(0, new ItemStack(Items.GOLD_INGOT, 11));
@@ -258,7 +266,7 @@ public class ProtectionGameTests {
 
     @GameTest
     public void deathReturnsCraftingInputsWithoutDuplicatingResult(GameTestHelper test) {
-        withConfig(test, ProtectionConfig.DEFAULT, () -> {
+        withConfig(test, ProtectionConfig.defaults(), () -> {
             ServerPlayer player = player(test, 0);
             player.inventoryMenu.getSlot(1).set(new ItemStack(Items.OAK_LOG, 3));
             player.inventoryMenu.getSlot(0).set(new ItemStack(Items.OAK_PLANKS, 4));
@@ -270,7 +278,10 @@ public class ProtectionGameTests {
         test.succeed();
     }
 
-    private static ServerPlayer player(GameTestHelper test, int ticks) {
+    static ProtectionConfig configuration(String defaults) {
+        return ProtectionConfig.parse(JsonParser.parseString("{\"defaults\":" + defaults + "}").getAsJsonObject());
+    }
+    static ServerPlayer player(GameTestHelper test, int ticks) {
         UUID id = UUID.randomUUID();
         CommonListenerCookie cookie = CommonListenerCookie.createInitial(new GameProfile(id,
                 "np-" + id.toString().substring(0, 8)), false);
@@ -298,37 +309,27 @@ public class ProtectionGameTests {
         test.assertValueEqual(player.experienceProgress, 0.5F, "XP progress survives");
     }
 
-    private static ServerPlayer respawn(ServerPlayer player) {
+    static ServerPlayer respawn(ServerPlayer player) {
         return player.level().getServer().getPlayerList().respawn(player, false, Entity.RemovalReason.KILLED);
     }
 
-    private static int drops(ServerPlayer player) {
+    static int drops(ServerPlayer player) {
         return player.level().getEntitiesOfClass(ItemEntity.class, new AABB(player.blockPosition()).inflate(8)).size();
     }
 
-    private static int orbs(ServerPlayer player) {
+    static int orbs(ServerPlayer player) {
         return player.level().getEntitiesOfClass(ExperienceOrb.class, new AABB(player.blockPosition()).inflate(8)).size();
     }
 
-    private static void withConfig(GameTestHelper test, ProtectionConfig config, Runnable assertions) {
-        ProtectionConfig previous = NewcomerProtection.config();
+    static void withConfig(GameTestHelper test, ProtectionConfig config, Runnable assertions) {
+        ProtectionConfig previous = NewcomerProtection.engine().config();
         boolean keepInventory = test.getLevel().getGameRules().get(GameRules.KEEP_INVENTORY);
         try {
-            Field field = NewcomerProtection.class.getDeclaredField("config");
-            field.setAccessible(true);
-            field.set(null, config);
+            NewcomerProtection.engine().replaceConfig(config);
             test.getLevel().getGameRules().set(GameRules.KEEP_INVENTORY, false, test.getLevel().getServer());
             assertions.run();
-        } catch (ReflectiveOperationException exception) {
-            throw new AssertionError(exception);
         } finally {
-            try {
-                Field field = NewcomerProtection.class.getDeclaredField("config");
-                field.setAccessible(true);
-                field.set(null, previous);
-            } catch (ReflectiveOperationException exception) {
-                throw new AssertionError(exception);
-            }
+            NewcomerProtection.engine().replaceConfig(previous);
             test.getLevel().getGameRules().set(GameRules.KEEP_INVENTORY, keepInventory, test.getLevel().getServer());
         }
     }

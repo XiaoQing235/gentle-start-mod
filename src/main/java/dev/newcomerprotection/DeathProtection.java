@@ -1,8 +1,10 @@
 package dev.newcomerprotection;
 
-/** The decisions made for one death, retained until that player respawns. */
+/** Immutable decisions for one death, retained until the player respawns. */
 public interface DeathProtection {
-    boolean newcomerProtection$keepInventory();
+    DeathSnapshot newcomerProtection$death();
 
-    boolean newcomerProtection$keepExperience();
+    default boolean newcomerProtection$keepInventory() {
+        return !newcomerProtection$death().slots().isEmpty();
+    }
 }

@@ -1,89 +1,237 @@
 package dev.newcomerprotection;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mojang.serialization.Codec;
-import com.mojang.serialization.DataResult;
 import com.mojang.serialization.JsonOps;
-import com.mojang.serialization.MapCodec;
-import com.mojang.serialization.codecs.RecordCodecBuilder;
 import java.io.IOException;
 import java.io.Reader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.Optional;
-import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.world.effect.MobEffect;
-import net.minecraft.world.effect.MobEffects;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
-public record ProtectionConfig(boolean enabled, long protectionSeconds, boolean keepInventory,
-                               boolean keepExperience, List<Effect> effects) {
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static final ProtectionConfig DEFAULT = new ProtectionConfig(true, 7200, true, true, List.of(
-            new Effect(MobEffects.RESISTANCE, 1, false, true),
-            new Effect(MobEffects.NIGHT_VISION, 1, false, true)));
+public final class ProtectionConfig {
+    private final JsonObject document;
+    private final boolean enabled;
+    private final ProtectionRules.Profile defaults;
+    private final Map<UUID, ProtectionRules.Profile> players;
 
-    public static final Codec<ProtectionConfig> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-            defaulted(Codec.BOOL, "enabled", true).forGetter(ProtectionConfig::enabled),
-            defaulted(Codec.LONG.validate(seconds -> seconds >= 0 && seconds <= Long.MAX_VALUE / 20
-                    ? DataResult.success(seconds)
-                    : DataResult.error(() -> "protectionSeconds must be between 0 and " + Long.MAX_VALUE / 20)),
-                    "protectionSeconds", 7200L)
-                    .forGetter(ProtectionConfig::protectionSeconds),
-            defaulted(Codec.BOOL, "keepInventory", true).forGetter(ProtectionConfig::keepInventory),
-            defaulted(Codec.BOOL, "keepExperience", true).forGetter(ProtectionConfig::keepExperience),
-            defaulted(Effect.CODEC.listOf(), "effects", DEFAULT.effects()).forGetter(ProtectionConfig::effects)
-    ).apply(instance, ProtectionConfig::new));
-
-    public ProtectionConfig {
-        effects = List.copyOf(effects);
+    private ProtectionConfig(JsonObject document, boolean enabled, ProtectionRules.Profile defaults,
+                             Map<UUID, ProtectionRules.Profile> players) {
+        this.document = document.deepCopy();
+        this.enabled = enabled;
+        this.defaults = defaults;
+        this.players = Map.copyOf(players);
     }
 
-    public boolean protects(long playedTicks) {
-        return enabled && playedTicks < protectionSeconds * 20;
+    public static ProtectionConfig defaults() {
+        JsonObject root = new JsonObject();
+        root.addProperty("enabled", true);
+        root.add("defaults", encode(ProtectionRules.Profile.DEFAULT));
+        root.add("players", new JsonObject());
+        return parse(root);
     }
 
-    // Accept omitted values while keeping generated configuration fully discoverable.
-    private static <T> MapCodec<T> defaulted(Codec<T> codec, String name, T fallback) {
-        return codec.optionalFieldOf(name).xmap(value -> value.orElse(fallback), Optional::of);
+    public boolean enabled() {
+        return enabled;
+    }
+
+    public ProtectionRules.Profile profile(UUID player) {
+        return players.getOrDefault(player, defaults);
+    }
+
+    public ProtectionRules.Profile defaultProfile() {
+        return defaults;
+    }
+
+    public Set<UUID> configuredPlayers() {
+        return players.keySet();
+    }
+
+    public JsonObject document() {
+        return document.deepCopy();
+    }
+
+    public ProtectionConfig withPlayer(UUID id, JsonObject override) {
+        JsonObject updated = document();
+        updated.getAsJsonObject("players").add(id.toString(), override.deepCopy());
+        return parse(updated);
+    }
+
+    public ProtectionConfig withoutPlayer(UUID id) {
+        JsonObject updated = document();
+        updated.getAsJsonObject("players").remove(id.toString());
+        return parse(updated);
+    }
+
+    public static ProtectionConfig parse(JsonObject input) {
+        JsonObject root = input.deepCopy();
+        checkFields(root, Set.of("enabled", "defaults", "players"), "root");
+        boolean enabled = !root.has("enabled") || Codec.BOOL.parse(JsonOps.INSTANCE, root.get("enabled")).getOrThrow();
+        JsonObject defaultJson = root.has("defaults") ? object(root.get("defaults"), "defaults") : new JsonObject();
+        validateProfileFields(defaultJson);
+        ProtectionRules.Profile defaults = ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE,
+                merge(encode(ProtectionRules.Profile.DEFAULT), defaultJson)).getOrThrow();
+        JsonObject entries = root.has("players") ? object(root.get("players"), "players") : new JsonObject();
+        JsonObject canonicalEntries = new JsonObject();
+        Map<UUID, ProtectionRules.Profile> players = new HashMap<>();
+        for (Map.Entry<String, JsonElement> entry : entries.entrySet()) {
+            UUID id = UUID.fromString(entry.getKey());
+            if (!id.toString().equalsIgnoreCase(entry.getKey()) || players.containsKey(id)) {
+                throw new IllegalArgumentException("Invalid or duplicate player UUID: " + entry.getKey());
+            }
+            JsonObject override = object(entry.getValue(), "player profile");
+            validateProfileFields(override);
+            players.put(id, ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE, merge(encode(defaults), override)).getOrThrow());
+            canonicalEntries.add(id.toString(), override.deepCopy());
+        }
+        root.addProperty("enabled", enabled);
+        root.add("defaults", encode(defaults));
+        root.add("players", canonicalEntries);
+        return new ProtectionConfig(root, enabled, defaults, players);
     }
 
     public static ProtectionConfig load(Path file) {
-        try {
-            if (Files.notExists(file)) {
-                Files.createDirectories(file.getParent());
-                Files.writeString(file, GSON.toJson(CODEC.encodeStart(JsonOps.INSTANCE, DEFAULT).getOrThrow()) + "\n",
-                        StandardCharsets.UTF_8);
-                return DEFAULT;
-            }
-            try (Reader reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
-                return CODEC.parse(JsonOps.INSTANCE, JsonParser.parseReader(reader)).getOrThrow();
-            }
+        if (Files.notExists(file)) {
+            ProtectionConfig config = defaults();
+            config.save(file);
+            return config;
+        }
+        try (Reader reader = Files.newBufferedReader(file)) {
+            JsonObject root = object(JsonParser.parseReader(reader), "configuration");
+            // Support the exact 0.1 format previously generated by this project.
+            boolean legacy = Set.of("protectionSeconds", "keepInventory", "keepExperience", "effects").stream().anyMatch(root::has);
+            return legacy ? importVersionOne(root) : parse(root);
         } catch (IOException | RuntimeException exception) {
             throw new IllegalStateException("Cannot load newcomer-protection.json: " + exception.getMessage(), exception);
         }
     }
 
-    public record Effect(Holder<MobEffect> effect, int level, boolean showParticles, boolean showIcon) {
-        private static final Codec<Holder<MobEffect>> EFFECT_CODEC = BuiltInRegistries.MOB_EFFECT.holderByNameCodec()
-                .validate(effect -> {
-                    if (!effect.getRegisteredName().startsWith("minecraft:")) {
-                        return DataResult.error(() -> "Only vanilla effects are supported: " + effect.getRegisteredName());
-                    }
-                    if (effect.value().isInstantaneous()) {
-                        return DataResult.error(() -> "Instant effects cannot be refreshed: " + effect.getRegisteredName());
-                    }
-                    return DataResult.success(effect);
-                });
-        public static final Codec<Effect> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                EFFECT_CODEC.fieldOf("id").forGetter(Effect::effect),
-                defaulted(Codec.intRange(1, 256), "level", 1).forGetter(Effect::level),
-                defaulted(Codec.BOOL, "showParticles", false).forGetter(Effect::showParticles),
-                defaulted(Codec.BOOL, "showIcon", true).forGetter(Effect::showIcon)
-        ).apply(instance, Effect::new));
+    public void save(Path file) {
+        JsonFiles.write(file, document);
+    }
+
+    public static JsonObject encode(ProtectionRules.Profile profile) {
+        return ProtectionRules.Profile.CODEC.encodeStart(JsonOps.INSTANCE, profile).getOrThrow().getAsJsonObject();
+    }
+
+    public static JsonObject merge(JsonObject base, JsonObject override) {
+        JsonObject result = base.deepCopy();
+        override.entrySet().forEach(entry -> {
+            JsonElement old = result.get(entry.getKey());
+            result.add(entry.getKey(), old != null && old.isJsonObject() && entry.getValue().isJsonObject()
+                    ? merge(old.getAsJsonObject(), entry.getValue().getAsJsonObject()) : entry.getValue().deepCopy());
+        });
+        return result;
+    }
+
+    private static ProtectionConfig importVersionOne(JsonObject old) {
+        checkFields(old, Set.of("enabled", "protectionSeconds", "keepInventory", "keepExperience", "effects"), "0.1 configuration");
+        double seconds = old.has("protectionSeconds") ? ProtectionRules.finiteRange(0, Long.MAX_VALUE / 20.0)
+                .parse(JsonOps.INSTANCE, old.get("protectionSeconds")).getOrThrow() : 7200;
+        JsonObject root = defaults().document();
+        if (old.has("enabled")) {
+            root.add("enabled", old.get("enabled"));
+        }
+        JsonObject profile = root.getAsJsonObject("defaults");
+        for (String feature : new String[]{"inventory", "experience", "score", "effects"}) {
+            profile.getAsJsonObject(feature).addProperty("minutes", seconds / 60);
+        }
+        boolean inventory = !old.has("keepInventory") || Codec.BOOL.parse(JsonOps.INSTANCE, old.get("keepInventory")).getOrThrow();
+        boolean experience = !old.has("keepExperience") || Codec.BOOL.parse(JsonOps.INSTANCE, old.get("keepExperience")).getOrThrow();
+        if (!inventory) {
+            profile.getAsJsonObject("inventory").addProperty("minutes", 0);
+        }
+        if (!experience) {
+            profile.getAsJsonObject("experience").addProperty("minutes", 0);
+        }
+        if (!inventory && !experience) {
+            profile.getAsJsonObject("score").addProperty("minutes", 0);
+        }
+        if (old.has("effects")) {
+            profile.getAsJsonObject("effects").add("list", old.get("effects"));
+        }
+        return parse(root);
+    }
+
+    private static JsonObject object(JsonElement value, String name) {
+        if (value == null || !value.isJsonObject()) {
+            throw new IllegalArgumentException(name + " must be a JSON object");
+        }
+        return value.getAsJsonObject();
+    }
+
+    private static void checkFields(JsonObject value, Set<String> fields, String name) {
+        for (String field : value.keySet()) {
+            if (!fields.contains(field)) {
+                throw new IllegalArgumentException("Unknown field in " + name + ": " + field);
+            }
+        }
+    }
+
+    private static void validateProfileFields(JsonObject profile) {
+        for (String name : profile.keySet()) {
+            Feature feature = Feature.parse(name);
+            JsonObject rule = object(profile.get(name), name);
+            Set<String> fields = switch (feature) {
+                case INVENTORY -> Set.of("minutes", "cancel", "keep");
+                case EXPERIENCE -> Set.of("minutes", "cancel", "ratio");
+                case SCORE -> Set.of("minutes", "cancel");
+                case REVIVE -> Set.of("minutes", "cancel", "uses", "invulnerabilitySeconds", "effects");
+                case EFFECTS -> Set.of("minutes", "cancel", "list");
+                case PVP -> Set.of("minutes", "cancel", "removeOnAttack");
+                case DAMAGE_REDUCTION -> Set.of("minutes", "cancel", "reduction");
+                case MOB_RANGE -> Set.of("minutes", "cancel", "multiplier");
+            };
+            checkFields(rule, fields, name);
+            for (String field : Set.of("uses", "invulnerabilitySeconds")) {
+                if (rule.has(field)) {
+                    integer(rule.get(field), field);
+                }
+            }
+            if (rule.has("cancel")) {
+                JsonObject cancel = object(rule.get("cancel"), "cancel");
+                checkFields(cancel, Set.of("requireAll", "advancements", "items",
+                        "itemTags", "experienceLevel", "playMinutes"), "cancel");
+                if (cancel.has("experienceLevel")) {
+                    integer(cancel.get("experienceLevel"), "experienceLevel");
+                }
+            }
+            if (rule.has("keep")) {
+                JsonObject keep = object(rule.get("keep"), "keep");
+                checkFields(keep, Set.of("all", "categories", "items", "tags", "slots"), "keep");
+                if (keep.has("slots")) {
+                    keep.getAsJsonArray("slots").forEach(slot -> integer(slot, "slot"));
+                }
+            }
+            for (String field : Set.of("list", "effects")) {
+                if (rule.has(field)) {
+                    rule.getAsJsonArray(field).forEach(element -> {
+                        JsonObject effect = object(element, "effect");
+                        checkFields(effect, Set.of("id", "level", "durationSeconds", "showParticles", "showIcon"), "effect");
+                        for (String number : Set.of("level", "durationSeconds")) {
+                            if (effect.has(number)) {
+                                integer(effect.get(number), number);
+                            }
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    private static void integer(JsonElement value, String name) {
+        try {
+            if (!value.isJsonPrimitive() || !value.getAsJsonPrimitive().isNumber()) {
+                throw new IllegalArgumentException(name + " must be an integer");
+            }
+            value.getAsBigDecimal().intValueExact();
+        } catch (ArithmeticException exception) {
+            throw new IllegalArgumentException(name + " must be an integer", exception);
+        }
     }
 }
