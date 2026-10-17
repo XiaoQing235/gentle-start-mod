@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and server GameTests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Java 25
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - name: Build and run server GameTests
+        run: |
+          mkdir -p build
+          ./gradlew build --no-daemon --console=plain --stacktrace | tee build/ci-build.log
+
+      - name: Scan working tree with BetterLeaks
+        run: |
+          mkdir -p "$RUNNER_TEMP/betterleaks"
+          curl --fail --silent --show-error --location \
+            https://github.com/betterleaks/betterleaks/releases/download/v1.8.1/betterleaks_1.8.1_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/betterleaks/archive.tar.gz"
+          echo "efa407244e1ea8e35f582b8a42becdeac08bdead04f68eb752adda722d583c2a  $RUNNER_TEMP/betterleaks/archive.tar.gz" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/betterleaks/archive.tar.gz" -C "$RUNNER_TEMP/betterleaks" betterleaks
+          git ls-files -z --cached --others --exclude-standard | \
+            xargs -0 "$RUNNER_TEMP/betterleaks/betterleaks" dir --redact --regex-engine stdlib --no-banner
+
+      - name: Upload mod Jar
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gentle-start-mod
+          path: |
+            build/libs/*.jar
+            !build/libs/*-sources.jar
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload build and GameTest diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gametest-diagnostics
+          path: |
+            build/ci-build.log
+            build/run/gameTest/logs/**
+            build/run/gameTest/crash-reports/**
+          if-no-files-found: ignore
+          retention-days: 7
