@@ -87,14 +87,14 @@ final class ConfigFormat {
     private static String description(String name) {
         return switch (name) {
             case "enabled" -> "模组总开关：true 启用，false 停用。";
-            case "timeConditionChecksPerTick" -> "每 tick 轮询时间取消条件的玩家数，整数 >= 1；其他条件由事件触发。";
+            case "timeConditionChecksPerTick" -> "每 tick 轮询时间条件并检查持续效果的玩家数，整数 >= 1；其他取消条件由事件触发。";
             case "defaults" -> "所有玩家的默认规则。";
             case "players" -> "玩家 UUID 的部分覆盖配置，空对象表示全部使用默认规则。";
             case "keepInventory" -> "死亡时保留背包及装备中选定的物品。";
             case "keepExperience" -> "死亡时保留经验。";
             case "keepScore" -> "死亡时保留玩家分数。";
             case "preventDeath" -> "受到致命伤害时原地免死。";
-            case "protectionEffects" -> "保护期间持续给予的药水效果。";
+            case "protectionEffects" -> "药水时长按本功能剩余保护期授予（负数期限给无限效果）；轮询按需补齐，不使用列表中的 durationSeconds。";
             case "pvpProtection" -> "防止其他玩家造成伤害。";
             case "damageReduction" -> "受到伤害时按比例减免。";
             case "mobDetectionRange" -> "缩小怪物对受保护玩家的感知范围。";
@@ -116,7 +116,7 @@ final class ConfigFormat {
             case "ratio" -> "经验保留比例 0～1；1 全部保留，0.5 保留一半。";
             case "uses" -> "免死总次数，整数；-1 不限，0 不允许免死。";
             case "health" -> "免死后恢复生命值，正数；2 点 = 1 颗心。";
-            case "effects", "list" -> "药水效果数组：id 为原版持续效果 ID；level 为等级 1～256；durationSeconds 为持续秒数 1～86400；showParticles/showIcon 控制粒子/图标。";
+            case "effects", "list" -> "药水效果数组：id 为原版持续效果 ID；level 为等级 1～256；durationSeconds 仅用于免死附加效果（1～86400 秒），持续保护忽略此旧字段；showParticles/showIcon 控制粒子/图标。";
             case "removeOnAttack" -> "主动攻击玩家时是否解除自己的 PvP 保护。";
             case "reduction" -> "伤害减免比例 0～1；0.25 表示减伤 25%。";
             case "multiplier" -> "怪物感知范围倍数 0～1；0.5 表示原范围的一半。";

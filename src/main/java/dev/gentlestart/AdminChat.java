@@ -27,7 +27,7 @@ final class AdminChat {
         return List.of(title("管理"),
                 Component.literal("全局状态：" + (config.enabled() ? "启用 " : "停用 "))
                         .append(button("切换", "enabled " + !config.enabled(), false, "只修改全局开关")),
-                Component.literal("每 tick 时间条件检查人数：" + config.playersPerTick() + " ")
+                Component.literal("每 tick 时间条件/效果检查人数：" + config.playersPerTick() + " ")
                         .append(button("编辑", "checksPerTick " + config.playersPerTick(), true, "只修改轮询人数，按回车保存")),
                 button("默认规则", "ui defaults", false, "设置全服默认保护规则")
                         .append(button("玩家覆盖", "ui players", false, "选择在线玩家或已有配置的 UUID"))
@@ -162,6 +162,8 @@ final class AdminChat {
             case "cancel.requireAll" -> "需要达成全部取消条件，历史达成也计入";
             case "cancel.experienceLevel" -> "取消等级阈值（非负整数，0 不使用）";
             case "cancel.playMinutes" -> "取消游玩分钟阈值（0 不使用）";
+            case "list" -> "持续药水数组：id、level、showParticles、showIcon；时长为剩余保护期，durationSeconds 不生效";
+            case "effects" -> "免死附加药水数组：id、level、durationSeconds（1～86400 秒）、showParticles、showIcon";
             default -> field + "，列表整体替换";
         };
     }

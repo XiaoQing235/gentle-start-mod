@@ -3,6 +3,7 @@
   "id": "gentle-start-mod-test",
   "version": "1.0.0",
   "environment": "server",
+  "mixins": ["gentle-start-test.mixins.json"],
   "entrypoints": {
     "fabric-gametest": [
       "dev.gentlestart.ProtectionGameTests",
@@ -10,7 +11,8 @@
       "dev.gentlestart.RecoveryProtectionGameTests",
       "dev.gentlestart.DeathDropGameTests",
       "dev.gentlestart.AdminChatGameTests",
-      "dev.gentlestart.StatePersistenceGameTests"
+      "dev.gentlestart.StatePersistenceGameTests",
+      "dev.gentlestart.EffectsGameTests"
     ]
   }
 }

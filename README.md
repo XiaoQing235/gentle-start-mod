@@ -57,7 +57,7 @@ The configuration file is `config/gentle-start-mod.json`. On server startup, if 
 The generated comments explain each feature, numeric unit, range, and special value. Legacy feature names such as `inventory`, and the old `playersPerTick` option, are still accepted. Saving through administrator commands writes the new names and standard comments. Reloading does not rewrite an existing file; saving does not preserve custom comments. Do not specify both the old and new names for the same feature. Fields within each feature and saved player state remain compatible.
 
 - `enabled`: global switch.
-- `timeConditionChecksPerTick`: maximum number of online players checked per server tick, in round-robin order, for **playtime cancellation conditions**. A positive integer, default `1`. With a stable population of P players, a full pass takes approximately `ceil(P / timeConditionChecksPerTick)` ticks. A player is never checked twice in the same tick. Features without time conditions are skipped; items, levels, and advancements are not periodically scanned.
+- `timeConditionChecksPerTick`: maximum number of online players checked per server tick, in round-robin order, for **playtime cancellation conditions and sustained effects**. A positive integer, default `1`. With a stable population of P players, a full pass takes approximately `ceil(P / timeConditionChecksPerTick)` ticks. A player is never checked twice in the same tick. Features without time conditions skip condition evaluation; items, levels, and advancements are not periodically scanned. Effects are replenished only when missing, weaker than required, or needing an extension.
 - `defaults`: default rules for all players.
 - `players`: per-player overrides indexed by UUID.
 
@@ -270,11 +270,13 @@ With `removeOnAttack: true`, attacking another player permanently ends the attac
 
 **Do effects disappear immediately when protection ends?**
 
-No. The mod stops refreshing them and lets existing effects expire naturally. It does not actively remove equivalent effects from potions or beacons.
+Sustained effects receive the remaining duration of `protectionEffects.minutes`; permanent protection uses vanilla infinite duration. Polling replenishes effects only when needed, preserving the natural countdown and vanilla periodic behavior such as regeneration. Login, respawn, prevented death, and configuration reloads check for missing effects. Milk-cleared effects return at the player's next scheduled check. The legacy `durationSeconds` field in the sustained effect list is still accepted but no longer controls duration; it still applies to `preventDeath.effects`.
+
+Finite effects expire naturally at their granted deadline. Early cancellation, shortening the window, or disabling a feature only stops replenishment; already granted effects and equivalent potion/beacon effects are not removed. An already granted infinite effect remains until milk, death, or another vanilla mechanism clears it.
 
 **Does it work with other mods?**
 
-The vanilla global `keep_inventory` rule remains effective. Mods with custom AI, death, or damage handling need testing in the intended combination; compatibility with every combination is not guaranteed.
+The vanilla global `keep_inventory` rule remains effective. Selective retention temporarily holds selected slots, lets vanilla process other items, vanishing curses, and equipment drops, and restores retained slots in `try/finally`. It neither reimplements the vanilla drop loop nor temporarily changes global rules. Slot restoration is tested with another Mixin cancelling or throwing during drops. Mods with custom AI, death, or damage handling still need testing in the intended combination; compatibility with every combination is not guaranteed.
 
 ## Building
 

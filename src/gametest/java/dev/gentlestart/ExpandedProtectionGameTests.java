@@ -177,6 +177,28 @@ public class ExpandedProtectionGameTests {
     }
 
     @GameTest
+    public void retainedSlotsSurviveAnotherModsCancelledOrFailedDropMethod(GameTestHelper test) {
+        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}}}"), () -> {
+            for (boolean fail : List.of(false, true)) {
+                var player = player(test, 0);
+                player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
+                player.addTag(fail ? "gentlestart_test_throw_drops" : "gentlestart_test_cancel_drops");
+                boolean failed = false;
+                try {
+                    player.hurtServer(test.getLevel(), player.damageSources().genericKill(), Float.MAX_VALUE);
+                } catch (IllegalStateException expected) {
+                    if (!"intentional test drop failure".equals(expected.getMessage())) throw expected;
+                    failed = true;
+                }
+                test.assertValueEqual(failed, fail, "Other mod's cancellation or exception remains visible");
+                test.assertTrue(player.getInventory().getItem(0).is(Items.DIAMOND), "Retained slot is restored on every exit path");
+                test.assertValueEqual(player.getInventory().getItem(0).getCount(), 3, "No item loss or duplication");
+            }
+        });
+        test.succeed();
+    }
+
+    @GameTest
     public void selectiveInventoryKeepsCategoriesTagsItemsAndSlots(GameTestHelper test) {
         withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"categories\":[\"hotbar\",\"offhand\"],"
                 + "\"items\":[\"minecraft:diamond\"],\"tags\":[\"minecraft:logs\"],\"slots\":[20]}}}"), () -> {

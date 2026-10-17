@@ -72,11 +72,6 @@ public final class GentleStart implements DedicatedServerModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (server.getTickCount() % 100 == 0) engine.states().saveAsync();
             engine.checkNextPlayers(server.getPlayerList().getPlayers());
-            for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-                if (player.tickCount % 20 == 0) {
-                    engine.refreshEffects(player);
-                }
-            }
         });
     }
 }

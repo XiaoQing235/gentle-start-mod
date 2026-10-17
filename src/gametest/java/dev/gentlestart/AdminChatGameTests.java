@@ -56,6 +56,11 @@ public class AdminChatGameTests {
             test.assertTrue(ProtectionCommands.featureStatus(UUID.randomUUID(), null, Feature.INVENTORY).contains("待上线核对"), "Offline state is not guessed");
             GentleStart.engine().states().cancel(id, Feature.INVENTORY, "offensive player damage");
             test.assertTrue(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY).contains("参与玩家攻击"), "Known cancellation reasons are human-readable");
+            var emptySelection = settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false}},\"revive\":{\"minutes\":-1,\"uses\":0}}");
+            GentleStart.engine().replaceConfig(emptySelection);
+            UUID fresh = UUID.randomUUID();
+            test.assertValueEqual(ProtectionCommands.featureStatus(fresh, null, Feature.INVENTORY), "未选择保留物品", "Empty selection is not presented as useful protection");
+            test.assertValueEqual(ProtectionCommands.featureStatus(fresh, null, Feature.REVIVE), "不授予免死（次数为 0）", "Zero configured charges differ from exhausted charges");
         });
         test.succeed();
     }

@@ -117,7 +117,10 @@ public final class ProtectionEngine {
     }
 
     public void checkOnlineConditions() {
-        server.getPlayerList().getPlayers().forEach(this::checkConditions);
+        server.getPlayerList().getPlayers().forEach(player -> {
+            checkConditions(player);
+            refreshEffects(player);
+        });
     }
 
     public void checkConditions(ServerPlayer player, ConditionChange change) {
@@ -139,7 +142,9 @@ public final class ProtectionEngine {
         int count = Math.min(config.playersPerTick(), players.size());
         for (int checked = 0; checked < count; checked++) {
             nextConditionPlayer %= players.size();
-            checkConditions(players.get(nextConditionPlayer), ConditionChange.TIME);
+            ServerPlayer player = players.get(nextConditionPlayer);
+            checkConditions(player, ConditionChange.TIME);
+            refreshEffects(player);
             nextConditionPlayer++;
         }
     }
@@ -150,7 +155,9 @@ public final class ProtectionEngine {
         }
         boolean changed = false;
         for (Feature feature : Feature.values()) {
-            ProtectionRules.Cancellation cancel = profile(player).window(feature).cancel();
+            ProtectionRules.Window window = profile(player).window(feature);
+            if (window.minutes() == 0 || states.get(player.getUUID()).cancellation(feature) != null) continue;
+            ProtectionRules.Cancellation cancel = window.cancel();
             for (Identifier id : cancel.items()) {
                 if (stack.is(BuiltInRegistries.ITEM.getValue(id))) {
                     changed |= states.observe(player.getUUID(), feature.id() + ":item:" + id);
@@ -253,7 +260,20 @@ public final class ProtectionEngine {
 
     public void refreshEffects(ServerPlayer player) {
         if (player.isAlive() && active(player, Feature.EFFECTS)) {
-            applyEffects(player, profile(player).effects().list());
+            var effects = profile(player).effects();
+            int duration = effects.window().minutes() < 0 ? MobEffectInstance.INFINITE_DURATION
+                    : (int) Math.min(Integer.MAX_VALUE, Math.ceil(effects.window().minutes() * 1200 - playedTicks(player)));
+            for (ProtectionRules.Effect effect : effects.list()) {
+                MobEffectInstance current = player.getEffect(effect.effect());
+                int amplifier = effect.level() - 1;
+                // Keep vanilla periodic-effect timing and stronger external effects. A small tolerance covers tick ordering.
+                if (current == null || current.getAmplifier() < amplifier
+                        || current.getAmplifier() == amplifier && !current.isInfiniteDuration()
+                        && (duration == MobEffectInstance.INFINITE_DURATION || (long) current.getDuration() + 20 < duration)) {
+                    player.addEffect(new MobEffectInstance(effect.effect(), duration, amplifier,
+                            false, effect.showParticles(), effect.showIcon()));
+                }
+            }
         }
     }
 
@@ -312,6 +332,7 @@ public final class ProtectionEngine {
         player.setTicksFrozen(0);
         player.resetFallDistance();
         applyEffects(player, revive.effects());
+        refreshEffects(player);
         player.sendSystemMessage(Component.literal("[Gentle Start] 已原地免死，剩余次数："
                 + (revive.uses() < 0 ? "不限" : revive.uses() - used - 1)));
         return true;

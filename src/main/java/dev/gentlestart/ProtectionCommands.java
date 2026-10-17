@@ -341,8 +341,15 @@ public final class ProtectionCommands {
         }
         if (player != null && player.isSpectator()) return "旁观模式不适用";
         if (player != null && !window.includes(ProtectionEngine.playedTicks(player))) return "已过期";
+        if (feature == Feature.REVIVE && profile.revive().uses() == 0) return "不授予免死（次数为 0）";
         if (feature == Feature.REVIVE && profile.revive().uses() >= 0
                 && engine().states().get(id).revivesUsed() >= profile.revive().uses()) return "免死次数已用尽";
+        if (feature == Feature.INVENTORY) {
+            var keep = profile.inventory().keep();
+            if (!keep.all() && keep.categories().isEmpty() && keep.items().isEmpty() && keep.tags().isEmpty() && keep.slots().isEmpty()) {
+                return "未选择保留物品";
+            }
+        }
         if (feature == Feature.EXPERIENCE && profile.experience().ratio() == 0) return "不保留经验（比例为 0）";
         if (feature == Feature.DAMAGE_REDUCTION && profile.damageReduction().reduction() == 0) return "不减伤（比例为 0）";
         if (feature == Feature.MOB_RANGE && profile.mobRange().multiplier() == 1) return "使用原版感知范围（倍数为 1）";
