@@ -1,0 +1,30 @@
+# Generated build and development runtime data
+.gradle/
+build/
+run/
+out/
+logs/
+*.log
+*.hprof
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.vscode/
+
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+*.local.properties
+gradle-local.properties
+local.properties
+secrets/
+credentials/
+
+# OS files
+.DS_Store
+Thumbs.db
