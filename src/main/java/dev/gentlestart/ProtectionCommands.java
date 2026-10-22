@@ -85,15 +85,15 @@ public final class ProtectionCommands {
                     }
                     parent.add(path[path.length - 1], JsonParser.parseString(StringArgumentType.getString(context, "value")));
                     update(id, selected, patch);
-                    reply(context, "已保存 " + selected.displayName() + "（" + selected.configName() + "）." + field + "。", true);
+                    reply(context, "已保存 " + selected.displayName() + "（" + selected.id() + "）." + field + "。", true);
                     return openRule(context, id, AdminChat.fieldPage(engine().config(), id, selected, field));
                 })))))));
         admin.then(ui);
         admin.then(Commands.literal("settings").then(Commands.argument("enabled", BoolArgumentType.bool())
-                .then(Commands.argument("playersPerTick", IntegerArgumentType.integer(1)).executes(guard(context -> {
+                .then(Commands.argument("timeConditionChecksPerTick", IntegerArgumentType.integer(1)).executes(guard(context -> {
                     JsonObject document = engine().config().document();
                     document.addProperty("enabled", BoolArgumentType.getBool(context, "enabled"));
-                    document.addProperty("playersPerTick", IntegerArgumentType.getInteger(context, "playersPerTick"));
+                    document.addProperty("timeConditionChecksPerTick", IntegerArgumentType.getInteger(context, "timeConditionChecksPerTick"));
                     engine().replaceConfig(ProtectionConfig.parse(document));
                     reply(context, "全局设置已保存。", true);
                     return context.getSource().getEntity() instanceof ServerPlayer
@@ -121,7 +121,7 @@ public final class ProtectionCommands {
         }))));
         admin.then(Commands.literal("checksPerTick").then(Commands.argument("value", IntegerArgumentType.integer(1)).executes(guard(context -> {
             JsonObject document = engine().config().document();
-            document.addProperty("playersPerTick", IntegerArgumentType.getInteger(context, "value"));
+            document.addProperty("timeConditionChecksPerTick", IntegerArgumentType.getInteger(context, "value"));
             engine().replaceConfig(ProtectionConfig.parse(document));
             reply(context, "每 tick 轮询人数已保存。", true);
             return context.getSource().getEntity() instanceof ServerPlayer
@@ -134,7 +134,7 @@ public final class ProtectionCommands {
         var player = uuidArgument("uuid").executes(guard(context -> status(context, uuid(context))));
         player.then(Commands.literal("show").executes(guard(context -> {
             reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(
-                    ConfigFormat.externalProfile(ProtectionConfig.encode(engine().config().profile(uuid(context))))), false);
+                    ProtectionConfig.encode(engine().config().profile(uuid(context)))), false);
             return 1;
         })));
         player.then(Commands.literal("set").then(feature(false).then(Commands.argument("minutes", DoubleArgumentType.doubleArg())
@@ -178,7 +178,7 @@ public final class ProtectionCommands {
         admin.then(Commands.literal("player").then(player));
 
         var defaults = Commands.literal("defaults").executes(context -> {
-            reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(ConfigFormat.externalDocument(engine().config().document()).get("defaults")), false);
+            reply(context, new GsonBuilder().setPrettyPrinting().create().toJson(engine().config().document().get("defaults")), false);
             return 1;
         });
         defaults.then(Commands.literal("set").then(feature(false).then(Commands.argument("minutes", DoubleArgumentType.doubleArg())
@@ -241,7 +241,7 @@ public final class ProtectionCommands {
 
     private static RequiredArgumentBuilder<CommandSourceStack, String> feature(boolean all) {
         return Commands.argument("feature", StringArgumentType.word()).suggests((context, builder) -> {
-            var names = new java.util.ArrayList<>(Arrays.stream(Feature.values()).map(Feature::configName).toList());
+            var names = new java.util.ArrayList<>(Arrays.stream(Feature.values()).map(Feature::id).toList());
             if (all) {
                 names.add("all");
             }
@@ -314,7 +314,7 @@ public final class ProtectionCommands {
         reply(context, id + (player == null ? "（离线：剩余时间需上线后计算）" : "，累计游玩 "
                 + String.format(java.util.Locale.ROOT, "%.2f", ProtectionEngine.playedTicks(player) / 1200.0) + " 分钟"), false);
         for (Feature feature : Feature.values()) {
-            reply(context, feature.displayName() + "（" + feature.configName() + "）：" + featureStatus(id, player, feature), false);
+            reply(context, feature.displayName() + "（" + feature.id() + "）：" + featureStatus(id, player, feature), false);
         }
         var revive = profile.revive();
         reply(context, "免死已使用 " + engine().states().get(id).revivesUsed() + "，总次数 "

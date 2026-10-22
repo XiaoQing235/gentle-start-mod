@@ -53,9 +53,9 @@ If a prebuilt package is not available, follow the [build instructions](#buildin
 
 ## Configuration
 
-The configuration file is `config/gentle-start-mod.json`. On server startup, if it does not exist, the mod generates the full default configuration with Chinese `//` comments. The filename remains unchanged, but its contents support comments (JSON with comments); strict external JSON tools require the comments to be removed first.
+The configuration file is `config/gentle-start-mod.json`. On server startup, if it does not exist, the mod generates the full default configuration with Chinese `//` comments. Its contents support comments (JSON with comments); strict external JSON tools require the comments to be removed first.
 
-The generated comments explain each feature, numeric unit, range, and special value. Legacy feature names such as `inventory`, and the old `playersPerTick` option, are still accepted. Saving through administrator commands writes the new names and standard comments. Reloading does not rewrite an existing file; saving does not preserve custom comments. Do not specify both the old and new names for the same feature. Fields within each feature and saved player state remain compatible.
+The generated comments explain each feature, numeric unit, range, and special value. Configuration files and administrator commands use the feature names in the table below; unknown fields are rejected. Reloading does not rewrite an existing file. Saving through administrator commands generates standard comments and does not preserve custom comments.
 
 - `enabled`: global switch.
 - `timeConditionChecksPerTick`: maximum number of online players checked per server tick, in round-robin order, for **playtime cancellation conditions and sustained effects**. A positive integer, default `1`. With a stable population of P players, a full pass takes approximately `ceil(P / timeConditionChecksPerTick)` ticks. A player is never checked twice in the same tick. Features without time conditions skip condition evaluation; items, levels, and advancements are not periodically scanned. Effects are replenished only when missing, weaker than required, or needing an extension.
@@ -111,7 +111,7 @@ Place the desired rules under `defaults` or an individual player's configuration
 ```
 
 - `preventDeath`: prevent death up to three times during the first 60 minutes, restoring health to 10 points (five hearts) each time. `uses: -1` allows unlimited uses. `invulnerabilitySeconds` controls the independent invulnerability period after each prevented death: default `5`, integer range `0–86400`, with `0` granting no additional invulnerability. Its timer is separate from `respawnInvulnerability.durationSeconds`; neither grants nor resets the other. Cancelling or resetting a feature clears only its own invulnerability.
-- `protectDeathDrops`: `lifetimeSeconds` sets death-drop lifetime, default `600` seconds, integer range `1–86400`. It counts entity ticks and pauses when the chunk stops ticking entities. Lifetime is captured at death; changing the configuration does not alter existing drops, and saving/loading does not refresh their remaining lifetime. Legacy drops retain their existing countdown. Ordinary manually dropped items, mining drops, and experience orbs are unaffected. Other players can still pick up protected drops.
+- `protectDeathDrops`: `lifetimeSeconds` sets death-drop lifetime, default `600` seconds, integer range `1–86400`. It counts entity ticks and pauses when the chunk stops ticking entities. Lifetime is captured at death; changing the configuration does not alter existing drops, and saving/loading does not refresh their remaining lifetime. Ordinary manually dropped items, mining drops, and experience orbs are unaffected. Other players can still pick up protected drops.
 - `damageReduction`: reduce incoming damage by 25%, before armor and potion damage reduction.
 - `mobDetectionRange`: reduce mob detection range to 50% of its original value. Mobs may still retaliate when attacked.
 
@@ -139,8 +139,6 @@ Disable inventory retention before enabling corpses. Place these rules under `de
 Only the owner can withdraw items and claim experience from a corpse; deposits are not allowed. Ownership uses the player's UUID saved at death, so renaming does not transfer access and another UUID with the same name is denied. This also applies to creative players. Hoppers and hopper minecarts cannot extract corpse contents. Curse of Vanishing still destroys affected items on death according to vanilla rules; those items do not enter the corpse.
 
 Only the owner can mine a corpse barrel, and explosions cannot destroy it. When the owner breaks it, remaining items and experience become ordinary drops. Administrators can still use `/kill` to remove a player model and release its contents; the owner lock does not restrict administrative commands. Disabling the feature stops new corpses from spawning; existing corpses retain their owner lock and remain accessible to their owner.
-
-Corpses created by the earlier version stored only a name, without an owner UUID. After upgrading, these corpses deny access while retaining their items and experience. An administrator must verify ownership and add `ownerId` in the `gentle-start-mod:corpse` data (the vanilla UUID integer-array format), or remove the corpse to recover its contents. Names are never used to automatically assign ownership.
 
 To enable the feature through commands, first run `/gentlestart admin defaults set keepInventory 0`, then `/gentlestart admin defaults rule deathCorpse {"minutes":-1,"mode":"barrel","saveExperience":true}`. Use `"player"` for the player model. The chat editor at `/gentlestart admin ui defaults deathCorpse` supports both options and per-player overrides.
 
@@ -294,8 +292,6 @@ Normal disconnects and restarts do not reset them. Cancellation records, consume
 
 Normal shutdown and `/save-all flush` wait for pending writes. Failed records remain pending and are retried without rewriting successfully saved players; newer changes take precedence over failed older writes. Write failures are logged rather than thrown through damage callbacks. Unreadable or corrupt player files fail explicitly when accessed, rather than resetting protection state. Power loss or forced termination can lose recent changes; persistent storage failures extend that window. Use administrator commands to change state; do not edit these files while the server is running.
 
-On the first startup after upgrading from the single-file format, the mod migrates `data/gentle-start-mod-state.json` into a temporary directory and publishes the new directory only after every record succeeds. This one-time migration can take time on large worlds. The original file is retained unchanged as a pre-upgrade backup; once the new directory exists, it is authoritative and the old file is never merged back. Back up the new directory with the world. Downgrading to a version that reads only the old file would restore stale state.
-
 **Can death prevention save players from the void?**
 
 No. The void, `/kill`, and other damage that bypasses invulnerability remain effective. The mod does not teleport players out of the void. Vanilla totems take priority over mod death-prevention uses. The mod checks lethality after damage, armor, and absorption are resolved, then restores health before entering the death process. It therefore does not close the current container, capture a death snapshot, or replace the player. Damage-related side effects such as equipment durability loss still follow vanilla behavior. Other mods that directly call death methods instead of going through damage handling are not guaranteed to be intercepted. An actual death clears previous death-prevention invulnerability.
@@ -306,7 +302,7 @@ With `removeOnAttack: true`, attacking another player permanently ends the attac
 
 **Do effects disappear immediately when protection ends?**
 
-Sustained effects receive the remaining duration of `protectionEffects.minutes`; permanent protection uses vanilla infinite duration. Polling replenishes effects only when needed, preserving the natural countdown and vanilla periodic behavior such as regeneration. Login, respawn, prevented death, and configuration reloads check for missing effects. Milk-cleared effects return at the player's next scheduled check. The legacy `durationSeconds` field in the sustained effect list is still accepted but no longer controls duration; it still applies to `preventDeath.effects`.
+Sustained effects receive the remaining duration of `protectionEffects.minutes`; permanent protection uses vanilla infinite duration. Polling replenishes effects only when needed, preserving the natural countdown and vanilla periodic behavior such as regeneration. Login, respawn, prevented death, and configuration reloads check for missing effects. Milk-cleared effects return at the player's next scheduled check. The `durationSeconds` field applies only to the additional effects in `preventDeath.effects`.
 
 Finite effects expire naturally at their granted deadline. Early cancellation, shortening the window, or disabling a feature only stops replenishment; already granted effects and equivalent potion/beacon effects are not removed. An already granted infinite effect remains until milk, death, or another vanilla mechanism clears it.
 

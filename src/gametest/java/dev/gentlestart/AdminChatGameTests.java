@@ -30,11 +30,11 @@ public class AdminChatGameTests {
                     .filter(value -> value.startsWith("/gentlestart admin checksPerTick ")).findFirst().orElseThrow();
             execute(test, "/gentlestart admin settings true 7", admin);
             execute(test, toggle, admin);
-            test.assertValueEqual(engine.config().playersPerTick(), 7, "Old toggle does not revert a newer polling budget");
+            test.assertValueEqual(engine.config().timeConditionChecksPerTick(), 7, "Old toggle does not revert a newer polling budget");
             test.assertFalse(engine.config().enabled(), "Toggle disables the mod");
             execute(test, budget.substring(0, budget.lastIndexOf(' ') + 1) + "3", admin);
             test.assertFalse(engine.config().enabled(), "Old budget editor does not re-enable the mod");
-            test.assertValueEqual(engine.config().playersPerTick(), 3, "Budget changes independently");
+            test.assertValueEqual(engine.config().timeConditionChecksPerTick(), 3, "Budget changes independently");
             reject(test, "/gentlestart admin checksPerTick 3", player(test, 0).createCommandSourceStack());
         });
         test.succeed();
@@ -42,7 +42,7 @@ public class AdminChatGameTests {
 
     @GameTest
     public void statusDistinguishesEffectiveExpiredSpectatorAndExhausted(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":1},\"revive\":{\"minutes\":-1,\"uses\":1}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":1},\"preventDeath\":{\"minutes\":-1,\"uses\":1}}"), () -> {
             var viewer = player(test, 0);
             UUID id = viewer.getUUID();
             test.assertTrue(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY).startsWith("生效中"), "Active state is explicit");
@@ -56,7 +56,7 @@ public class AdminChatGameTests {
             test.assertTrue(ProtectionCommands.featureStatus(UUID.randomUUID(), null, Feature.INVENTORY).contains("待上线核对"), "Offline state is not guessed");
             GentleStart.engine().states().cancel(id, Feature.INVENTORY, "offensive player damage");
             test.assertTrue(ProtectionCommands.featureStatus(id, viewer, Feature.INVENTORY).contains("参与玩家攻击"), "Known cancellation reasons are human-readable");
-            var emptySelection = settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false}},\"revive\":{\"minutes\":-1,\"uses\":0}}");
+            var emptySelection = settings("{\"keepInventory\":{\"minutes\":-1,\"keep\":{\"all\":false}},\"preventDeath\":{\"minutes\":-1,\"uses\":0}}");
             GentleStart.engine().replaceConfig(emptySelection);
             UUID fresh = UUID.randomUUID();
             test.assertValueEqual(ProtectionCommands.featureStatus(fresh, null, Feature.INVENTORY), "未选择保留物品", "Empty selection is not presented as useful protection");
@@ -78,7 +78,7 @@ public class AdminChatGameTests {
                 for (String field : fields.keySet()) {
                     List<Component> lines = AdminChat.rule(engine.config(), target, feature,
                             AdminChat.fieldPage(engine.config(), target, feature, field));
-                    String prefix = "/gentlestart admin ui set " + target + " " + feature.configName() + " " + field + " ";
+                    String prefix = "/gentlestart admin ui set " + target + " " + feature.id() + " " + field + " ";
                     test.assertTrue(clicks(lines).stream().anyMatch(event -> command(event).startsWith(prefix)),
                             "Every field has an edit/toggle action, including list fields: " + field);
                 }
@@ -91,11 +91,11 @@ public class AdminChatGameTests {
             engine.reload();
             test.assertValueEqual(engine.config().profile(target).deathDrops().lifetimeSeconds(), 42, "Chat edit persists selected value");
             test.assertValueEqual(engine.config().document().getAsJsonObject("players").getAsJsonObject(target.toString())
-                    .getAsJsonObject("deathDrops").size(), 1, "Only edited field becomes a UUID override");
-            execute(test, "/gentlestart admin ui set defaults deathDrops minutes 77", admin);
+                    .getAsJsonObject("protectDeathDrops").size(), 1, "Only edited field becomes a UUID override");
+            execute(test, "/gentlestart admin ui set defaults protectDeathDrops minutes 77", admin);
             test.assertValueEqual(engine.config().profile(target).deathDrops().window().minutes(), 77.0,
                     "Unedited fields continue inheriting changed defaults");
-            execute(test, "/gentlestart admin ui set " + target + " inventory cancel.items [\"minecraft:diamond\"]", admin);
+            execute(test, "/gentlestart admin ui set " + target + " keepInventory cancel.items [\"minecraft:diamond\"]", admin);
             test.assertValueEqual(engine.config().profile(target).inventory().window().cancel().items().size(), 1,
                     "Nested list can be edited from chat");
             var pvp = clicks(AdminChat.rule(engine.config(), target, Feature.PVP, 1));
@@ -118,12 +118,16 @@ public class AdminChatGameTests {
             var admin = test.getLevel().getServer().createCommandSourceStack().withEntity(viewer);
             JsonObject before = engine.config().document();
             for (String invalid : List.of("0", "-1", "1.5", "86401", "not-a-number", "null")) {
-                reject(test, "/gentlestart admin ui set defaults deathDrops lifetimeSeconds " + invalid, admin);
+                reject(test, "/gentlestart admin ui set defaults protectDeathDrops lifetimeSeconds " + invalid, admin);
                 test.assertValueEqual(engine.config().document(), before, "Invalid edit is atomic");
             }
-            reject(test, "/gentlestart admin ui set defaults deathDrops unknown 42", admin);
+            reject(test, "/gentlestart admin ui set defaults protectDeathDrops unknown 42", admin);
+            for (String oldName : List.of("inventory", "experience", "score", "revive", "effects", "pvp",
+                    "mobRange", "respawnProtection", "deathDrops", "corpse")) {
+                reject(test, "/gentlestart admin defaults set " + oldName + " 1", admin);
+            }
             for (String command : List.of("/gentlestart admin ui", "/gentlestart admin settings false 2",
-                    "/gentlestart admin ui set defaults deathDrops lifetimeSeconds 42")) {
+                    "/gentlestart admin ui set defaults protectDeathDrops lifetimeSeconds 42")) {
                 reject(test, command, viewer.createCommandSourceStack());
             }
             test.assertValueEqual(engine.config().document(), before, "Forged chat commands do not bypass permissions");

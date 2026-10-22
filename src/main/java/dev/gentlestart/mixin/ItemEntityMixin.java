@@ -79,9 +79,8 @@ abstract class ItemEntityMixin implements DeathDropProtection {
     private void gentleStart$load(ValueInput input, CallbackInfo callback) {
         gentleStart$protected = input.getBooleanOr("gentle-start-mod:death_drop", false);
         if (gentleStart$protected) {
-            // Older drops used negative vanilla Age and the vanilla 6000-tick deadline.
-            gentleStart$lifetimeTicks = input.getIntOr("gentle-start-mod:lifetime_ticks", 6000);
-            age = input.getIntOr("gentle-start-mod:age", age);
+            gentleStart$lifetimeTicks = input.getInt("gentle-start-mod:lifetime_ticks").orElseThrow();
+            age = input.getInt("gentle-start-mod:age").orElseThrow();
         }
     }
 }

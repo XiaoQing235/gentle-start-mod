@@ -17,15 +17,15 @@ import java.util.UUID;
 public final class ProtectionConfig {
     private final JsonObject document;
     private final boolean enabled;
-    private final int playersPerTick;
+    private final int timeConditionChecksPerTick;
     private final ProtectionRules.Profile defaults;
     private final Map<UUID, ProtectionRules.Profile> players;
 
-    private ProtectionConfig(JsonObject document, boolean enabled, int playersPerTick, ProtectionRules.Profile defaults,
+    private ProtectionConfig(JsonObject document, boolean enabled, int timeConditionChecksPerTick, ProtectionRules.Profile defaults,
                              Map<UUID, ProtectionRules.Profile> players) {
         this.document = document.deepCopy();
         this.enabled = enabled;
-        this.playersPerTick = playersPerTick;
+        this.timeConditionChecksPerTick = timeConditionChecksPerTick;
         this.defaults = defaults;
         this.players = Map.copyOf(players);
     }
@@ -42,8 +42,8 @@ public final class ProtectionConfig {
         return enabled;
     }
 
-    public int playersPerTick() {
-        return playersPerTick;
+    public int timeConditionChecksPerTick() {
+        return timeConditionChecksPerTick;
     }
 
     public ProtectionRules.Profile profile(UUID player) {
@@ -75,13 +75,13 @@ public final class ProtectionConfig {
     }
 
     public static ProtectionConfig parse(JsonObject input) {
-        JsonObject root = ConfigFormat.read(input);
-        checkFields(root, Set.of("enabled", "playersPerTick", "defaults", "players"), "root");
+        JsonObject root = input.deepCopy();
+        checkFields(root, Set.of("enabled", "timeConditionChecksPerTick", "defaults", "players"), "root");
         boolean enabled = !root.has("enabled") || Codec.BOOL.parse(JsonOps.INSTANCE, root.get("enabled")).getOrThrow();
-        int playersPerTick = 1;
-        if (root.has("playersPerTick")) {
-            integer(root.get("playersPerTick"), "playersPerTick");
-            playersPerTick = Codec.intRange(1, Integer.MAX_VALUE).parse(JsonOps.INSTANCE, root.get("playersPerTick")).getOrThrow();
+        int timeConditionChecksPerTick = 1;
+        if (root.has("timeConditionChecksPerTick")) {
+            integer(root.get("timeConditionChecksPerTick"), "timeConditionChecksPerTick");
+            timeConditionChecksPerTick = Codec.intRange(1, Integer.MAX_VALUE).parse(JsonOps.INSTANCE, root.get("timeConditionChecksPerTick")).getOrThrow();
         }
         JsonObject defaultJson = root.has("defaults") ? object(root.get("defaults"), "defaults") : new JsonObject();
         validateProfileFields(defaultJson);
@@ -105,10 +105,10 @@ public final class ProtectionConfig {
             canonicalEntries.add(id.toString(), override.deepCopy());
         }
         root.addProperty("enabled", enabled);
-        root.addProperty("playersPerTick", playersPerTick);
+        root.addProperty("timeConditionChecksPerTick", timeConditionChecksPerTick);
         root.add("defaults", encode(defaults));
         root.add("players", canonicalEntries);
-        return new ProtectionConfig(root, enabled, playersPerTick, defaults, players);
+        return new ProtectionConfig(root, enabled, timeConditionChecksPerTick, defaults, players);
     }
 
     public static ProtectionConfig load(Path file) {
@@ -200,7 +200,9 @@ public final class ProtectionConfig {
                 if (rule.has(field)) {
                     rule.getAsJsonArray(field).forEach(element -> {
                         JsonObject effect = object(element, "effect");
-                        checkFields(effect, Set.of("id", "level", "durationSeconds", "showParticles", "showIcon"), "effect");
+                        checkFields(effect, field.equals("effects")
+                                ? Set.of("id", "level", "durationSeconds", "showParticles", "showIcon")
+                                : Set.of("id", "level", "showParticles", "showIcon"), "effect");
                         for (String number : Set.of("level", "durationSeconds")) {
                             if (effect.has(number)) {
                                 integer(effect.get(number), number);

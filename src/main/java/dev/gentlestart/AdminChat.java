@@ -27,8 +27,8 @@ final class AdminChat {
         return List.of(title("管理"),
                 Component.literal("全局状态：" + (config.enabled() ? "启用 " : "停用 "))
                         .append(button("切换", "enabled " + !config.enabled(), false, "只修改全局开关")),
-                Component.literal("每 tick 时间条件/效果检查人数：" + config.playersPerTick() + " ")
-                        .append(button("编辑", "checksPerTick " + config.playersPerTick(), true, "只修改轮询人数，按回车保存")),
+                Component.literal("每 tick 时间条件/效果检查人数：" + config.timeConditionChecksPerTick() + " ")
+                        .append(button("编辑", "checksPerTick " + config.timeConditionChecksPerTick(), true, "只修改轮询人数，按回车保存")),
                 button("默认规则", "ui defaults", false, "设置全服默认保护规则")
                         .append(button("玩家覆盖", "ui players", false, "选择在线玩家或已有配置的 UUID"))
                         .append(button("重载文件", "reload", false, "从配置文件重新加载规则"))
@@ -42,7 +42,7 @@ final class AdminChat {
         for (Feature feature : Feature.values()) {
             double minutes = profile.window(feature).minutes();
             String state = minutes == 0 ? "关闭" : minutes < 0 ? "长期" : minutes + " 分钟";
-            lines.add(button(feature.displayName(), scope(target) + " " + feature.configName(), false, "查看并编辑 " + feature.configName())
+            lines.add(button(feature.displayName(), scope(target) + " " + feature.id(), false, "查看并编辑 " + feature.id())
                     .append(Component.literal(" " + state).withStyle(ChatFormatting.GRAY)));
         }
         if (target != null) {
@@ -64,7 +64,7 @@ final class AdminChat {
             lines.add(Component.literal("开启前需将物品保留（keepInventory）的 minutes 设为 0；仅死亡尸体使用 54 格。")
                     .withStyle(ChatFormatting.GRAY));
         }
-        String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.configName() + " ";
+        String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.id() + " ";
         fields.entrySet().stream().skip((current - 1L) * PAGE_SIZE).limit(PAGE_SIZE).forEach(entry -> {
             String field = entry.getKey();
             JsonElement value = entry.getValue();
@@ -76,16 +76,16 @@ final class AdminChat {
                     .append(button(bool ? "切换" : "编辑", prefix + field + " " + (bool ? !value.getAsBoolean() : raw),
                             !bool, fieldName(field) + (bool ? "；点击立即切换" : "；修改末尾值后回车保存，列表使用 JSON 数组"))));
         });
-        String scope = scope(target) + " " + feature.configName();
+        String scope = scope(target) + " " + feature.id();
         MutableComponent navigation = Component.empty();
         if (current > 1) navigation.append(button("上一页", scope + " " + (current - 1), false, "上一页"));
         if (current < pages) navigation.append(button("下一页", scope + " " + (current + 1), false, "下一页"));
         navigation.append(button("返回功能", scope(target), false, "选择其他保护功能"));
         lines.add(navigation);
         if (target != null) {
-            lines.add(button("恢复本功能默认配置", "player " + target + " clear " + feature.configName(), true,
+            lines.add(button("恢复本功能默认配置", "player " + target + " clear " + feature.id(), true,
                     "预填命令，回车后删除本功能的玩家覆盖，不重置持久状态")
-                    .append(button("重置取消状态", "player " + target + " reset " + feature.configName(), true,
+                    .append(button("重置取消状态", "player " + target + " reset " + feature.id(), true,
                             "预填命令，回车后重置本功能状态；免死功能会清零已用次数")));
         }
         return lines;
@@ -168,7 +168,7 @@ final class AdminChat {
             case "cancel.requireAll" -> "需要达成全部取消条件，历史达成也计入";
             case "cancel.experienceLevel" -> "取消等级阈值（非负整数，0 不使用）";
             case "cancel.playMinutes" -> "取消游玩分钟阈值（0 不使用）";
-            case "list" -> "持续药水数组：id、level、showParticles、showIcon；时长为剩余保护期，durationSeconds 不生效";
+            case "list" -> "持续药水数组：id、level、showParticles、showIcon；时长为剩余保护期";
             case "effects" -> "免死附加药水数组：id、level、durationSeconds（1～86400 秒）、showParticles、showIcon";
             default -> field + "，列表整体替换";
         };

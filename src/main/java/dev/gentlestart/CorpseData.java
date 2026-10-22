@@ -1,6 +1,7 @@
 package dev.gentlestart;
 
 import java.util.UUID;
+import com.mojang.serialization.Codec;
 import net.minecraft.core.UUIDUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -18,7 +19,7 @@ public final class CorpseData {
     public CorpseData(UUID ownerId, String ownerName, int experience) {
         this.ownerId = ownerId;
         this.ownerName = ownerName;
-        this.experience = Math.max(0, experience);
+        this.experience = experience;
     }
 
     public Component title() {
@@ -26,7 +27,7 @@ public final class CorpseData {
     }
 
     public boolean isOwner(Player player) {
-        return ownerId != null && ownerId.equals(player.getUUID());
+        return ownerId.equals(player.getUUID());
     }
 
     public boolean canAccess(Player player) {
@@ -34,9 +35,7 @@ public final class CorpseData {
     }
 
     public void denyAccess(Player player) {
-        player.sendOverlayMessage(Component.literal(ownerId == null
-                ? "[Gentle Start] 此尸体缺少所有者 UUID，请联系管理员处理。"
-                : "[Gentle Start] 只有尸体所有者可以取回遗物。"));
+        player.sendOverlayMessage(Component.literal("[Gentle Start] 只有尸体所有者可以取回遗物。"));
     }
 
     public int experience() {
@@ -50,14 +49,14 @@ public final class CorpseData {
     }
 
     public void save(ValueOutput output) {
-        output.storeNullable("ownerId", UUIDUtil.CODEC, ownerId);
+        output.store("ownerId", UUIDUtil.CODEC, ownerId);
         output.putString("ownerName", ownerName);
         output.putInt("experience", experience);
     }
 
     public static CorpseData load(ValueInput input) {
-        // Older corpses contain a name only. Never guess ownership from mutable names.
-        return new CorpseData(input.read("ownerId", UUIDUtil.CODEC).orElse(null),
-                input.getStringOr("ownerName", "玩家"), input.getIntOr("experience", 0));
+        return new CorpseData(input.read("ownerId", UUIDUtil.CODEC).orElseThrow(),
+                input.getString("ownerName").orElseThrow(),
+                input.read("experience", Codec.intRange(0, Integer.MAX_VALUE)).orElseThrow());
     }
 }

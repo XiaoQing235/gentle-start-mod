@@ -15,17 +15,17 @@ public class StatePersistenceGameTests {
     public void readsDoNotCreateRecordsAndMutationsAreBatched(GameTestHelper test) throws Exception {
         Path root = Files.createTempDirectory("gentlestart-state-test-");
         try {
-            Path file = root.resolve("state.json");
+            Path file = root.resolve("players");
             PlayerStates states = new PlayerStates(file);
             for (int i = 0; i < 1000; i++) states.get(new UUID(0, i));
             test.assertFalse(states.hasPendingChanges(), "Read-only lookups do not create pending state");
             states.save();
-            test.assertFalse(Files.exists(directory(file)), "Clean state does not create the state directory");
+            test.assertFalse(Files.exists(file), "Clean state does not create the state directory");
             UUID id = UUID.randomUUID();
             for (Feature feature : Feature.values()) states.cancel(id, feature, "test");
-            test.assertFalse(Files.exists(directory(file)), "Ten cancellations are buffered without per-feature writes");
+            test.assertFalse(Files.exists(file), "Ten cancellations are buffered without per-feature writes");
             test.assertTrue(states.save(), "One explicit flush saves all changes");
-            try (var files = Files.walk(directory(file))) {
+            try (var files = Files.walk(file)) {
                 test.assertValueEqual(files.filter(Files::isRegularFile).count(), 1L, "Only the mutated player is persisted");
             }
             PlayerStates loaded = new PlayerStates(file);
@@ -43,7 +43,7 @@ public class StatePersistenceGameTests {
         Path root = Files.createTempDirectory("gentlestart-state-failure-");
         try {
             Path blocker = root.resolve("blocked");
-            Path file = blocker.resolve("state.json");
+            Path file = blocker.resolve("players");
             PlayerStates states = new PlayerStates(file);
             UUID id = UUID.randomUUID();
             states.cancel(id, Feature.PVP, "test");
@@ -68,7 +68,7 @@ public class StatePersistenceGameTests {
     public void flushIncludesChangesAfterAnAsyncSnapshot(GameTestHelper test) throws Exception {
         Path root = Files.createTempDirectory("gentlestart-state-async-");
         try {
-            Path file = root.resolve("state.json");
+            Path file = root.resolve("players");
             PlayerStates states = new PlayerStates(file);
             UUID id = UUID.randomUUID();
             states.revive(id, 100);
@@ -95,7 +95,7 @@ public class StatePersistenceGameTests {
     public void savesOnlyChangedPlayersAndRetriesOnlyFailures(GameTestHelper test) throws Exception {
         Path root = Files.createTempDirectory("gentlestart-incremental-");
         try {
-            Path file = root.resolve("state.json");
+            Path file = root.resolve("players");
             PlayerStates states = new PlayerStates(file);
             UUID unchanged = UUID.randomUUID(), changed = UUID.randomUUID(), blocked = UUID.randomUUID();
             states.revive(unchanged, 100);
@@ -130,7 +130,7 @@ public class StatePersistenceGameTests {
     public void evictionKeepsUnsavedStateAndLoadsHistoryOnDemand(GameTestHelper test) throws Exception {
         Path root = Files.createTempDirectory("gentlestart-state-cache-");
         try {
-            Path file = root.resolve("state.json");
+            Path file = root.resolve("players");
             PlayerStates states = new PlayerStates(file);
             UUID id = UUID.randomUUID();
             states.revive(id, 100);
@@ -162,69 +162,9 @@ public class StatePersistenceGameTests {
         test.succeed();
     }
 
-    @GameTest
-    public void migratesLegacyStateWithoutResurrectingDeletedPlayers(GameTestHelper test) throws Exception {
-        Path root = Files.createTempDirectory("gentlestart-state-migration-");
-        try {
-            Path file = root.resolve("state.json");
-            UUID id = UUID.randomUUID();
-            JsonObject legacy = new JsonObject();
-            legacy.add(id.toString(), JsonParser.parseString("{\"revivesUsed\":2,\"invulnerableUntil\":240,"
-                    + "\"observed\":[\"pvp:item:minecraft:diamond\"],\"cancelled\":{\"pvp\":\"test\"}}"));
-            String original = legacy.toString();
-            Files.writeString(file, original);
-            PlayerStates states = new PlayerStates(file);
-            test.assertValueEqual(states.get(id).revivesUsed(), 2, "Migration preserves charge usage");
-            test.assertValueEqual(states.get(id).invulnerableUntil(), 240L, "Migration preserves respawn deadline");
-            test.assertValueEqual(states.get(id).reviveInvulnerableUntil(), 0L, "Legacy optional field still defaults to zero");
-            test.assertTrue(states.get(id).observed().contains("pvp:item:minecraft:diamond"), "Condition history survives");
-            test.assertValueEqual(states.get(id).cancellation(Feature.PVP), "test", "Cancellation survives");
-            test.assertValueEqual(Files.readString(file), original, "Original legacy file is retained unchanged");
-            test.assertFalse(states.hasPendingChanges(), "Migration publishes a complete store");
-            states.reset(id, null);
-            test.assertTrue(states.save(), "Migrated player can be deleted");
-            test.assertValueEqual(new PlayerStates(file).get(id).revivesUsed(), 0, "Old backup never resurrects deleted state");
-        } finally {
-            delete(root);
-        }
-        test.succeed();
-    }
-
-    @GameTest
-    public void failedMigrationNeverPublishesPartialState(GameTestHelper test) throws Exception {
-        Path root = Files.createTempDirectory("gentlestart-migration-failure-");
-        try {
-            Path file = root.resolve("state.json");
-            UUID id = UUID.randomUUID();
-            String valid = "\"" + id + "\":{\"revivesUsed\":3,\"invulnerableUntil\":0,\"observed\":[],\"cancelled\":{}}";
-            String invalid = "{" + valid + ",\"invalid UUID\":{}}";
-            Files.writeString(file, invalid);
-            boolean rejected = false;
-            try { new PlayerStates(file); }
-            catch (IllegalStateException expected) { rejected = true; }
-            test.assertTrue(rejected, "Invalid later record rejects the migration");
-            test.assertFalse(Files.exists(directory(file)), "A partially migrated directory is never published");
-            test.assertValueEqual(Files.readString(file), invalid, "Migration failure leaves the source untouched");
-            Files.writeString(file, "{" + valid + "}");
-            Path interrupted = root.resolve("state.json.d.migrating");
-            Files.createDirectories(interrupted);
-            Files.writeString(interrupted.resolve("orphan.json"), "unpublished interrupted attempt");
-            test.assertValueEqual(new PlayerStates(file).get(id).revivesUsed(), 3, "Retry migrates complete state after repair");
-            test.assertFalse(Files.exists(directory(file).resolve("orphan.json")), "Interrupted migration cannot publish stale records");
-            test.assertFalse(Files.exists(interrupted), "Migration staging is removed after success");
-        } finally {
-            delete(root);
-        }
-        test.succeed();
-    }
-
-    static Path directory(Path legacy) {
-        return legacy.resolveSibling(legacy.getFileName() + ".d");
-    }
-
-    static Path playerFile(Path legacy, UUID id) {
+    static Path playerFile(Path directory, UUID id) {
         String name = id.toString();
-        return directory(legacy).resolve(name.substring(0, 2)).resolve(name + ".json");
+        return directory.resolve(name.substring(0, 2)).resolve(name + ".json");
     }
 
     static void delete(Path root) throws Exception {

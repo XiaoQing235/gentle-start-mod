@@ -50,7 +50,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void periodicChecksRotateWithinPlayerBudget(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"playMinutes\":1}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"playMinutes\":1}}}"), () -> {
             var players = List.of(player(test, 1200), player(test, 1200), player(test, 1200));
             engine().checkNextPlayers(List.of());
             engine().checkNextPlayers(players);
@@ -59,7 +59,7 @@ public class ExpandedProtectionGameTests {
             test.assertTrue(engine().states().get(players.get(1).getUUID()).cancellation(Feature.INVENTORY) == null,
                     "Default budget does not scan the second player on the same tick");
             JsonObject document = engine().config().document();
-            document.addProperty("playersPerTick", 2);
+            document.addProperty("timeConditionChecksPerTick", 2);
             engine().replaceConfig(ProtectionConfig.parse(document));
             engine().checkNextPlayers(players);
             for (ServerPlayer player : players) {
@@ -80,16 +80,16 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void newNumericOptionsValidateAndInherit(GameTestHelper test) {
-        test.assertValueEqual(ProtectionConfig.defaults().playersPerTick(), 1, "Default periodic budget is one player");
+        test.assertValueEqual(ProtectionConfig.defaults().timeConditionChecksPerTick(), 1, "Default periodic budget is one player");
         test.assertValueEqual(ProtectionConfig.defaults().defaultProfile().deathDrops().lifetimeSeconds(), 600, "Default drop lifetime is 600 seconds");
         UUID id = UUID.randomUUID();
-        ProtectionConfig config = settings("{\"deathDrops\":{\"minutes\":120,\"lifetimeSeconds\":42}}");
-        config = config.withPlayer(id, json("{\"deathDrops\":{\"minutes\":-1}}"));
+        ProtectionConfig config = settings("{\"protectDeathDrops\":{\"minutes\":120,\"lifetimeSeconds\":42}}");
+        config = config.withPlayer(id, json("{\"protectDeathDrops\":{\"minutes\":-1}}"));
         test.assertValueEqual(config.profile(id).deathDrops().lifetimeSeconds(), 42, "Partial player override inherits lifetime");
-        for (String invalid : List.of("{\"playersPerTick\":0}", "{\"playersPerTick\":1.5}",
-                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":0}}}",
-                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":1.5}}}",
-                "{\"defaults\":{\"deathDrops\":{\"lifetimeSeconds\":86401}}}")) {
+        for (String invalid : List.of("{\"timeConditionChecksPerTick\":0}", "{\"timeConditionChecksPerTick\":1.5}",
+                "{\"defaults\":{\"protectDeathDrops\":{\"lifetimeSeconds\":0}}}",
+                "{\"defaults\":{\"protectDeathDrops\":{\"lifetimeSeconds\":1.5}}}",
+                "{\"defaults\":{\"protectDeathDrops\":{\"lifetimeSeconds\":86401}}}")) {
             boolean rejected = false;
             try {
                 ProtectionConfig.parse(json(invalid));
@@ -103,8 +103,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void eventChecksDoNotPollUnrelatedConditions(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"experienceLevel\":5}},"
-                + "\"pvp\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"experienceLevel\":5}},"
+                + "\"pvpProtection\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"), () -> {
             ServerPlayer player = player(test, 0);
             // Deliberately bypass the vanilla setter to prove unrelated events and ticks no longer poll levels.
             player.experienceLevel = 5;
@@ -122,7 +122,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void equipmentChangesImmediatelyObserveItemConditions(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond_helmet\"]}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond_helmet\"]}}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.setItemSlot(EquipmentSlot.HEAD, new ItemStack(Items.DIAMOND_HELMET));
             test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
@@ -136,20 +136,20 @@ public class ExpandedProtectionGameTests {
         withConfig(test, settings("{}"), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
-            engine().replaceConfig(settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"));
+            engine().replaceConfig(settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}}}"));
             test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
                     "Installing a new rule sees items acquired before that rule existed");
             var console = test.getLevel().getServer().createCommandSourceStack();
-            execute(test, "gentlestart admin player " + player.getUUID() + " reset inventory", console);
+            execute(test, "gentlestart admin player " + player.getUUID() + " reset keepInventory", console);
             test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
                     "Reset immediately reevaluates a currently held item");
             player.getInventory().clearContent();
-            execute(test, "gentlestart admin player " + player.getUUID() + " reset inventory", console);
+            execute(test, "gentlestart admin player " + player.getUUID() + " reset keepInventory", console);
             test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) == null,
                     "After removing the item a reset clears historical cancellation");
             player.experienceLevel = 7;
             JsonObject updated = engine().config().document();
-            updated.getAsJsonObject("defaults").getAsJsonObject("inventory").add("cancel", json("{\"experienceLevel\":7}"));
+            updated.getAsJsonObject("defaults").getAsJsonObject("keepInventory").add("cancel", json("{\"experienceLevel\":7}"));
             ProtectionConfig.parse(updated).save(configFile());
             engine().reload();
             test.assertTrue(engine().states().get(player.getUUID()).cancellation(Feature.INVENTORY) != null,
@@ -160,10 +160,10 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void uuidRulesInheritAndEachFeatureHasItsOwnClock(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":1},\"experience\":{\"minutes\":2},\"score\":{\"minutes\":-3}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":1},\"keepExperience\":{\"minutes\":2},\"keepScore\":{\"minutes\":-3}}"), () -> {
             ServerPlayer first = player(test, 1200);
             ServerPlayer second = player(test, 1200);
-            engine().replaceConfig(engine().config().withPlayer(first.getUUID(), json("{\"inventory\":{\"minutes\":-1}}")));
+            engine().replaceConfig(engine().config().withPlayer(first.getUUID(), json("{\"keepInventory\":{\"minutes\":-1}}")));
             test.assertTrue(engine().active(first, Feature.INVENTORY), "UUID override grants permanent inventory protection");
             test.assertFalse(engine().active(second, Feature.INVENTORY), "Another UUID still uses the default cutoff");
             test.assertTrue(engine().active(first, Feature.EXPERIENCE), "Unspecified protection inherits defaults");
@@ -178,7 +178,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void retainedSlotsSurviveAnotherModsCancelledOrFailedDropMethod(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}}}"), () -> {
             for (boolean fail : List.of(false, true)) {
                 var player = player(test, 0);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
@@ -200,7 +200,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void selectiveInventoryKeepsCategoriesTagsItemsAndSlots(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"categories\":[\"hotbar\",\"offhand\"],"
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"categories\":[\"hotbar\",\"offhand\"],"
                 + "\"items\":[\"minecraft:diamond\"],\"tags\":[\"minecraft:logs\"],\"slots\":[20]}}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().setItem(0, new ItemStack(Items.IRON_SWORD));
@@ -231,7 +231,7 @@ public class ExpandedProtectionGameTests {
         var items = List.of(Items.BOW, Items.IRON_PICKAXE, Items.DIAMOND_HELMET, Items.BREAD, Items.DIRT);
         for (int index = 0; index < categories.length; index++) {
             int category = index;
-            withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"categories\":[\""
+            withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"categories\":[\""
                     + categories[index] + "\"]}}}"), () -> {
                 ServerPlayer player = player(test, 0);
                 player.getInventory().setItem(15, new ItemStack(items.get(category)));
@@ -248,7 +248,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void experienceRatioUsesSpendablePointsAndScoreIsIndependent(GameTestHelper test) {
-        withConfig(test, settings("{\"experience\":{\"minutes\":-1,\"ratio\":0.5}}"), () -> {
+        withConfig(test, settings("{\"keepExperience\":{\"minutes\":-1,\"ratio\":0.5}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.experienceLevel = 10;
             player.experienceProgress = 0;
@@ -259,7 +259,7 @@ public class ExpandedProtectionGameTests {
             test.assertValueEqual(next.totalExperience, 80, "Half of the spendable 160 XP is retained");
             test.assertValueEqual(next.getScore(), 0, "XP restoration does not accidentally restore score");
         });
-        withConfig(test, settings("{\"score\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"keepScore\":{\"minutes\":-1}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.experienceLevel = 10;
             player.setScore(123);
@@ -275,7 +275,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void directReviveRunsAfterTotemsAndConsumesFiniteCharges(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":0,"
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":0,"
                 + "\"effects\":[{\"id\":\"minecraft:fire_resistance\",\"durationSeconds\":8}]}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.setItemSlot(EquipmentSlot.OFFHAND, new ItemStack(Items.TOTEM_OF_UNDYING));
@@ -298,7 +298,7 @@ public class ExpandedProtectionGameTests {
             test.assertTrue(player.isDeadOrDying(), "Exhausted charges allow normal death");
             test.assertTrue(engine().states().save(), "Pending state reaches disk");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
-                    .resolve("data/gentle-start-mod-state.json"));
+                    .resolve("data/gentle-start-mod-state.json.d"));
             test.assertValueEqual(reloaded.get(player.getUUID()).revivesUsed(), 1, "Charge usage persists to disk");
         });
         test.succeed();
@@ -306,7 +306,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest(maxTicks = 80)
     public void reviveInvulnerabilityExpires(GameTestHelper test) {
-        ProtectionConfig config = settings("{\"revive\":{\"minutes\":-1,\"uses\":2,\"invulnerabilitySeconds\":1}}");
+        ProtectionConfig config = settings("{\"preventDeath\":{\"minutes\":-1,\"uses\":2,\"invulnerabilitySeconds\":1}}");
         ServerPlayer[] saved = new ServerPlayer[1];
         withConfig(test, config, () -> {
             ServerPlayer player = player(test, 0);
@@ -327,7 +327,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void administrativeKillAndVoidBypassDamageProtection(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":-1},\"damageReduction\":{\"minutes\":-1,\"reduction\":1}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"uses\":-1},\"damageReduction\":{\"minutes\":-1,\"reduction\":1}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.kill(test.getLevel());
             test.assertTrue(player.isDeadOrDying(), "Administrative kill bypasses protections");
@@ -341,7 +341,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void pvpBlocksIncomingAndOffensePermanentlyEndsOnlyPvp(GameTestHelper test) {
-        withConfig(test, settings("{\"pvp\":{\"minutes\":-1,\"removeOnAttack\":true},\"inventory\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"pvpProtection\":{\"minutes\":-1,\"removeOnAttack\":true},\"keepInventory\":{\"minutes\":-1}}"), () -> {
             ServerPlayer first = player(test, 0);
             ServerPlayer second = player(test, 0);
             first.removeAllEffects();
@@ -362,10 +362,10 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void pvpCoversProjectilesAndProtectedAttackersCannotExploitShield(GameTestHelper test) {
-        withConfig(test, settings("{\"pvp\":{\"minutes\":-1,\"removeOnAttack\":false}}"), () -> {
+        withConfig(test, settings("{\"pvpProtection\":{\"minutes\":-1,\"removeOnAttack\":false}}"), () -> {
             ServerPlayer attacker = player(test, 0);
             ServerPlayer target = player(test, 0);
-            engine().replaceConfig(engine().config().withPlayer(target.getUUID(), json("{\"pvp\":{\"minutes\":0}}")));
+            engine().replaceConfig(engine().config().withPlayer(target.getUUID(), json("{\"pvpProtection\":{\"minutes\":0}}")));
             Arrow arrow = new Arrow(test.getLevel(), attacker, new ItemStack(Items.ARROW), null);
             target.hurtServer(test.getLevel(), target.damageSources().arrow(arrow, attacker), 6);
             test.assertValueEqual(target.getHealth(), 20.0F, "Protected attacker cannot deal projectile damage");
@@ -376,7 +376,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void indirectPlayerSourcesEndOnlyAttackersCurrentImmunity(GameTestHelper test) {
-        withConfig(test, settings("{\"pvp\":{\"minutes\":-1},\"revive\":{\"minutes\":-1},\"respawnProtection\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"pvpProtection\":{\"minutes\":-1},\"preventDeath\":{\"minutes\":-1},\"respawnInvulnerability\":{\"minutes\":-1}}"), () -> {
             ServerPlayer attacker = player(test, 0);
             ServerPlayer victim = player(test, 0);
             var wolf = test.spawn(EntityTypes.WOLF, 1, 1, 1);
@@ -410,7 +410,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void offensiveImmunityEndsEvenWhenPvpProtectionIsDisabled(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1},\"respawnProtection\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1},\"respawnInvulnerability\":{\"minutes\":-1}}"), () -> {
             var attacker = player(test, 0);
             var victim = player(test, 0);
             long until = test.getLevel().getServer().overworld().getGameTime() + 100;
@@ -441,7 +441,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void mobRangeAffectsDetectionAndExistingTargets(GameTestHelper test) {
-        withConfig(test, settings("{\"mobRange\":{\"minutes\":-1,\"multiplier\":0.5}}"), () -> {
+        withConfig(test, settings("{\"mobDetectionRange\":{\"minutes\":-1,\"multiplier\":0.5}}"), () -> {
             ServerPlayer player = player(test, 0);
             Zombie mob = new Zombie(EntityTypes.ZOMBIE, test.getLevel());
             mob.getAttribute(Attributes.FOLLOW_RANGE).setBaseValue(16);
@@ -463,8 +463,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void itemAndLevelCancellationStayCancelledAfterLosingProgress(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}},"
-                + "\"experience\":{\"minutes\":-1,\"cancel\":{\"experienceLevel\":10}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"items\":[\"minecraft:diamond\"]}},"
+                + "\"keepExperience\":{\"minutes\":-1,\"cancel\":{\"experienceLevel\":10}}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().add(new ItemStack(Items.DIAMOND));
             player.getInventory().clearContent();
@@ -474,7 +474,7 @@ public class ExpandedProtectionGameTests {
             test.assertFalse(engine().active(player, Feature.EXPERIENCE), "Spending XP does not regain protection");
             test.assertTrue(engine().states().save(), "Pending state reaches disk");
             PlayerStates reloaded = new PlayerStates(test.getLevel().getServer().getWorldPath(LevelResource.ROOT)
-                    .resolve("data/gentle-start-mod-state.json"));
+                    .resolve("data/gentle-start-mod-state.json.d"));
             test.assertTrue(reloaded.get(player.getUUID()).cancellation(Feature.INVENTORY) != null, "Cancellation persists to disk");
         });
         test.succeed();
@@ -482,8 +482,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void advancementCancellationAndAllConditionsUsePersistentHistory(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"advancements\":[\"minecraft:story/mine_stone\"]}},"
-                + "\"pvp\":{\"minutes\":-1,\"cancel\":{\"requireAll\":true,\"items\":[\"minecraft:diamond\"],\"experienceLevel\":5}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"advancements\":[\"minecraft:story/mine_stone\"]}},"
+                + "\"pvpProtection\":{\"minutes\":-1,\"cancel\":{\"requireAll\":true,\"items\":[\"minecraft:diamond\"],\"experienceLevel\":5}}}"), () -> {
             ServerPlayer player = player(test, 0);
             var advancement = test.getLevel().getServer().getAdvancements().get(net.minecraft.resources.Identifier.parse("minecraft:story/mine_stone"));
             for (String criterion : advancement.value().criteria().keySet()) {
@@ -501,7 +501,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void playtimeCancellationAppliesToPermanentFeatures(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"cancel\":{\"playMinutes\":1}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"cancel\":{\"playMinutes\":1}}}"), () -> {
             ServerPlayer player = player(test, 1199);
             test.assertTrue(engine().active(player, Feature.INVENTORY), "Before the cancellation threshold");
             player.getStats().setValue(player, Stats.CUSTOM.get(Stats.PLAY_TIME), 1200);
@@ -515,15 +515,15 @@ public class ExpandedProtectionGameTests {
         withConfig(test, settings("{}"), () -> {
             UUID id = UUID.randomUUID();
             var console = test.getLevel().getServer().createCommandSourceStack();
-            execute(test, "gentlestart admin player " + id + " set inventory -1", console);
-            execute(test, "gentlestart admin player " + id + " rule experience {\"minutes\":30,\"ratio\":0.5}", console);
+            execute(test, "gentlestart admin player " + id + " set keepInventory -1", console);
+            execute(test, "gentlestart admin player " + id + " rule keepExperience {\"minutes\":30,\"ratio\":0.5}", console);
             test.assertValueEqual(engine().config().profile(id).inventory().window().minutes(), -1.0, "Offline UUID duration saved");
             test.assertValueEqual(ProtectionConfig.load(configFile()).profile(id).experience().ratio(), 0.5, "Edited rule is on disk");
-            execute(test, "gentlestart admin player " + id + " cancel inventory", console);
+            execute(test, "gentlestart admin player " + id + " cancel keepInventory", console);
             test.assertTrue(engine().states().get(id).cancellation(Feature.INVENTORY) != null, "Admin cancellation saved");
-            execute(test, "gentlestart admin player " + id + " reset inventory", console);
+            execute(test, "gentlestart admin player " + id + " reset keepInventory", console);
             test.assertTrue(engine().states().get(id).cancellation(Feature.INVENTORY) == null, "Admin reset clears the chosen feature");
-            execute(test, "gentlestart admin player " + id + " clear experience", console);
+            execute(test, "gentlestart admin player " + id + " clear keepExperience", console);
             test.assertValueEqual(engine().config().profile(id).experience().window().minutes(), 0.0, "Clearing a rule resumes default inheritance");
             ServerPlayer ordinary = player(test, 0);
             boolean denied = false;
@@ -541,7 +541,7 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void failedReloadRetainsLiveConfigAndInvalidFile(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":15}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":15}}"), () -> {
             ProtectionConfig previous = engine().config();
             try {
                 Files.writeString(configFile(), "{broken");
@@ -567,7 +567,7 @@ public class ExpandedProtectionGameTests {
             ServerPlayer player = player(test, 12000);
             var console = test.getLevel().getServer().createCommandSourceStack();
             String prefix = "gentlestart admin player " + player.getUUID();
-            execute(test, prefix + " grant inventory 5", console);
+            execute(test, prefix + " grant keepInventory 5", console);
             test.assertValueEqual(engine().profile(player).inventory().window().minutes(), 15.0,
                     "Grant adds minutes to current playtime, rather than restarting the player's statistic");
             test.assertValueEqual(ProtectionEngine.playedTicks(player), 12000L, "Grant never rewrites vanilla play time");
@@ -575,7 +575,7 @@ public class ExpandedProtectionGameTests {
             for (String invalid : List.of("{broken", "{\"minutes\":3,\"keep\":{\"tags\":[\"minecraft:unknown_tag\"]}}")) {
                 boolean failed = false;
                 try {
-                    test.getLevel().getServer().getCommands().getDispatcher().execute(prefix + " rule inventory " + invalid, console);
+                    test.getLevel().getServer().getCommands().getDispatcher().execute(prefix + " rule keepInventory " + invalid, console);
                 } catch (CommandSyntaxException expected) {
                     failed = true;
                 }
@@ -592,8 +592,8 @@ public class ExpandedProtectionGameTests {
 
     @GameTest
     public void itemTagCancellationAndConfigurationChangesDoNotRewritePendingDeaths(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1},\"experience\":{\"minutes\":-1,\"ratio\":0.5},"
-                + "\"pvp\":{\"minutes\":-1,\"cancel\":{\"itemTags\":[\"minecraft:logs\"]}}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1},\"keepExperience\":{\"minutes\":-1,\"ratio\":0.5},"
+                + "\"pvpProtection\":{\"minutes\":-1,\"cancel\":{\"itemTags\":[\"minecraft:logs\"]}}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 2));
             player.experienceLevel = 10;
@@ -613,13 +613,13 @@ public class ExpandedProtectionGameTests {
     @GameTest
     public void partialProfilesAndUuidCaseKeepDefaultInheritance(GameTestHelper test) {
         UUID id = UUID.randomUUID();
-        JsonObject root = json("{\"defaults\":{\"inventory\":{\"keep\":{\"all\":false,\"categories\":[\"armor\"]}}},\"players\":{}}");
-        root.getAsJsonObject("players").add(id.toString().toUpperCase(java.util.Locale.ROOT), json("{\"experience\":{\"ratio\":0.25}}"));
+        JsonObject root = json("{\"defaults\":{\"keepInventory\":{\"keep\":{\"all\":false,\"categories\":[\"armor\"]}}},\"players\":{}}");
+        root.getAsJsonObject("players").add(id.toString().toUpperCase(java.util.Locale.ROOT), json("{\"keepExperience\":{\"ratio\":0.25}}"));
         ProtectionConfig config = ProtectionConfig.parse(root);
         test.assertValueEqual(config.profile(id).inventory().window().minutes(), 120.0, "Partial default rule inherits the duration");
         test.assertValueEqual(config.profile(id).experience().window().minutes(), 120.0, "Partial UUID rule inherits its duration");
         test.assertTrue(config.document().getAsJsonObject("players").has(id.toString()), "UUID keys are canonicalized");
-        config = config.withPlayer(id, json("{\"score\":{\"minutes\":-1}}"));
+        config = config.withPlayer(id, json("{\"keepScore\":{\"minutes\":-1}}"));
         test.assertValueEqual(config.configuredPlayers().size(), 1, "Editing a canonical UUID does not create a duplicate");
         test.succeed();
     }

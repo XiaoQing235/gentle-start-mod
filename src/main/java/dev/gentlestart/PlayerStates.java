@@ -2,8 +2,6 @@ package dev.gentlestart;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.google.gson.stream.JsonReader;
-import com.google.gson.stream.JsonToken;
 import com.mojang.serialization.Codec;
 import com.mojang.serialization.JsonOps;
 import java.io.IOException;
@@ -11,8 +9,6 @@ import java.io.Reader;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -90,53 +86,10 @@ public final class PlayerStates {
 
     private record SaveResult(Map<UUID, State> failed, RuntimeException failure) {}
 
-    public PlayerStates(Path file) {
-        directory = file.toAbsolutePath().resolveSibling(file.getFileName() + ".d");
-        migrate(file);
-    }
-
-    private void migrate(Path legacy) {
-        if (Files.isDirectory(directory)) return; // Published directory is authoritative, including deleted players.
+    public PlayerStates(Path directory) {
+        this.directory = directory.toAbsolutePath();
+        if (Files.isDirectory(directory)) return;
         if (Files.exists(directory)) throw new IllegalStateException("Player state directory is not a directory");
-        Path staging = null;
-        try (Reader reader = Files.newBufferedReader(legacy); JsonReader json = new JsonReader(reader)) {
-            LOGGER.info("Migrating legacy Gentle Start player state; the original file will be retained as a backup");
-            staging = directory.resolveSibling(directory.getFileName() + ".migrating");
-            removeMigration(staging); // Discard an unpublished attempt left by a terminated process.
-            Files.createDirectory(staging);
-            json.beginObject();
-            while (json.hasNext()) {
-                UUID id = UUID.fromString(json.nextName());
-                State state = decode(JsonParser.parseReader(json).getAsJsonObject());
-                if (state.empty()) Files.deleteIfExists(playerFile(staging, id));
-                else JsonFiles.write(playerFile(staging, id), encode(state));
-            }
-            json.endObject();
-            if (json.peek() != JsonToken.END_DOCUMENT) throw new IllegalArgumentException("Trailing player state data");
-            // Until all records are valid and written, a failed/interrupted migration never replaces the legacy source.
-            Files.move(staging, directory, StandardCopyOption.ATOMIC_MOVE);
-            staging = null;
-            LOGGER.info("Gentle Start player state migration completed");
-        } catch (NoSuchFileException exception) {
-            if (!Files.notExists(legacy)) throw new IllegalStateException("Cannot migrate Gentle Start player state", exception);
-        } catch (IOException | RuntimeException exception) {
-            throw new IllegalStateException("Cannot migrate Gentle Start player state", exception);
-        } finally {
-            if (staging != null) {
-                try {
-                    removeMigration(staging);
-                } catch (IOException exception) {
-                    LOGGER.warn("Cannot remove incomplete player state migration directory", exception);
-                }
-            }
-        }
-    }
-
-    private static void removeMigration(Path staging) throws IOException {
-        if (Files.notExists(staging)) return;
-        try (var paths = Files.walk(staging)) {
-            for (Path path : paths.sorted(Comparator.reverseOrder()).toList()) Files.delete(path);
-        }
     }
 
     private static Path playerFile(Path directory, UUID id) {
@@ -159,8 +112,7 @@ public final class PlayerStates {
         State state = new State();
         state.revivesUsed = Codec.intRange(0, Integer.MAX_VALUE).parse(JsonOps.INSTANCE, data.get("revivesUsed")).getOrThrow();
         state.invulnerableUntil = Codec.LONG.parse(JsonOps.INSTANCE, data.get("invulnerableUntil")).getOrThrow();
-        state.reviveInvulnerableUntil = data.has("reviveInvulnerableUntil")
-                ? Codec.LONG.parse(JsonOps.INSTANCE, data.get("reviveInvulnerableUntil")).getOrThrow() : 0;
+        state.reviveInvulnerableUntil = Codec.LONG.parse(JsonOps.INSTANCE, data.get("reviveInvulnerableUntil")).getOrThrow();
         state.observed.addAll(Codec.STRING.listOf().parse(JsonOps.INSTANCE, data.get("observed")).getOrThrow());
         data.getAsJsonObject("cancelled").entrySet().forEach(cancelled -> state.cancelled.put(
                 Feature.parse(cancelled.getKey()), Codec.STRING.parse(JsonOps.INSTANCE, cancelled.getValue()).getOrThrow()));

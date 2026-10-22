@@ -6,63 +6,19 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import java.util.Map;
 
-/** Human-facing names are separate from stable feature IDs used in player history. */
+/** Writes the current configuration with generated field descriptions. */
 final class ConfigFormat {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
     private ConfigFormat() {
     }
 
-    static JsonObject read(JsonObject input) {
-        JsonObject root = input.deepCopy();
-        rename(root, "timeConditionChecksPerTick", "playersPerTick");
-        profiles(root, false);
-        return root;
-    }
-
-    private static void profiles(JsonObject root, boolean writing) {
-        if (root.has("defaults") && root.get("defaults").isJsonObject()) {
-            profile(root.getAsJsonObject("defaults"), writing);
-        }
-        if (root.has("players") && root.get("players").isJsonObject()) {
-            root.getAsJsonObject("players").entrySet().forEach(entry -> {
-                if (entry.getValue().isJsonObject()) profile(entry.getValue().getAsJsonObject(), writing);
-            });
-        }
-    }
-
-    static JsonObject externalProfile(JsonObject input) {
-        JsonObject result = input.deepCopy();
-        profile(result, true);
-        return result;
-    }
-
-    private static void profile(JsonObject profile, boolean writing) {
-        for (Feature feature : Feature.values()) {
-            rename(profile, writing ? feature.id() : feature.configName(), writing ? feature.configName() : feature.id());
-        }
-    }
-
-    private static void rename(JsonObject object, String from, String to) {
-        if (from.equals(to) || !object.has(from)) return;
-        if (object.has(to)) throw new IllegalArgumentException("Do not specify both " + from + " and " + to);
-        object.add(to, object.remove(from));
-    }
-
-    static JsonObject externalDocument(JsonObject document) {
-        JsonObject root = document.deepCopy();
-        rename(root, "playersPerTick", "timeConditionChecksPerTick");
-        profiles(root, true);
-        return root;
-    }
-
     static String write(JsonObject document) {
-        JsonObject root = externalDocument(document);
         StringBuilder result = new StringBuilder("// Gentle Start 配置（UTF-8，支持 // 和 /* */ 注释）。\n"
                 + "// 修改后执行 /gentlestart admin reload；管理员保存会重新生成标准注释，不保留自定义注释。\n"
                 + "// minutes 是累计游玩分钟上限：0 关闭，负数永久，正数到期结束；所有秒数按 20 tick/秒计算。\n"
                 + "// players 中用玩家 UUID 设置部分覆盖；未填写字段继承 defaults，数组整体替换。\n");
-        appendObject(result, root, 0);
+        appendObject(result, document, 0);
         return result.append('\n').toString();
     }
 
@@ -94,7 +50,7 @@ final class ConfigFormat {
             case "keepExperience" -> "死亡时保留经验。";
             case "keepScore" -> "死亡时保留玩家分数。";
             case "preventDeath" -> "受到致命伤害时原地免死。";
-            case "protectionEffects" -> "药水时长按本功能剩余保护期授予（负数期限给无限效果）；轮询按需补齐，不使用列表中的 durationSeconds。";
+            case "protectionEffects" -> "药水时长按本功能剩余保护期授予（负数期限给无限效果）；轮询按需补齐。";
             case "pvpProtection" -> "防止其他玩家造成伤害。";
             case "damageReduction" -> "受到伤害时按比例减免。";
             case "mobDetectionRange" -> "缩小怪物对受保护玩家的感知范围。";
@@ -119,7 +75,8 @@ final class ConfigFormat {
             case "ratio" -> "经验保留比例 0～1；1 全部保留，0.5 保留一半。";
             case "uses" -> "免死总次数，整数；-1 不限，0 不允许免死。";
             case "health" -> "免死后恢复生命值，正数；2 点 = 1 颗心。";
-            case "effects", "list" -> "药水效果数组：id 为原版持续效果 ID；level 为等级 1～256；durationSeconds 仅用于免死附加效果（1～86400 秒），持续保护忽略此旧字段；showParticles/showIcon 控制粒子/图标。";
+            case "effects" -> "免死附加药水数组：id 为原版持续效果 ID；level 为等级 1～256；durationSeconds 为持续秒数（1～86400）；showParticles/showIcon 控制粒子/图标。";
+            case "list" -> "持续药水数组：id 为原版持续效果 ID；level 为等级 1～256；showParticles/showIcon 控制粒子/图标。";
             case "removeOnAttack" -> "主动攻击玩家时是否解除自己的 PvP 保护。";
             case "reduction" -> "伤害减免比例 0～1；0.25 表示减伤 25%。";
             case "multiplier" -> "怪物感知范围倍数 0～1；0.5 表示原范围的一半。";

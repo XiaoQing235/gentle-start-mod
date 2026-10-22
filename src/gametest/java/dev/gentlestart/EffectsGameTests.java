@@ -14,14 +14,14 @@ import net.minecraft.world.effect.MobEffects;
 public class EffectsGameTests {
     @GameTest
     public void regenerationUsesRemainingWindowWithoutResettingItsCadence(GameTestHelper test) {
-        withConfig(test, settings("{\"effects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:regeneration\",\"durationSeconds\":1}]}}"), () -> {
+        withConfig(test, settings("{\"protectionEffects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:regeneration\"}]}}"), () -> {
             var engine = GentleStart.engine();
             var player = player(test, 0);
             player.removeAllEffects();
             player.setHealth(10);
             engine.refreshEffects(player);
             var effect = player.getEffect(MobEffects.REGENERATION);
-            test.assertValueEqual(effect.getDuration(), 1200, "Legacy duration is ignored for sustained protection");
+            test.assertValueEqual(effect.getDuration(), 1200, "Sustained protection lasts for the remaining window");
             for (int tick = 1; tick <= 200; tick++) {
                 effect.tickServer(test.getLevel(), player, () -> {});
                 player.getStats().setValue(player, Stats.CUSTOM.get(Stats.PLAY_TIME), tick);
@@ -39,7 +39,7 @@ public class EffectsGameTests {
 
     @GameTest
     public void effectsShareThePlayerPollingBudgetAndReturnAfterMilk(GameTestHelper test) {
-        withConfig(test, settings("{\"effects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:night_vision\"}]}}"), () -> {
+        withConfig(test, settings("{\"protectionEffects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:night_vision\"}]}}"), () -> {
             var engine = GentleStart.engine();
             var first = player(test, 100);
             var second = player(test, 200);
@@ -60,7 +60,7 @@ public class EffectsGameTests {
 
     @GameTest
     public void infiniteEffectsAndExternalPotionsKeepTheirVanillaState(GameTestHelper test) {
-        withConfig(test, settings("{\"effects\":{\"minutes\":-1,\"list\":[{\"id\":\"minecraft:resistance\"}]}}"), () -> {
+        withConfig(test, settings("{\"protectionEffects\":{\"minutes\":-1,\"list\":[{\"id\":\"minecraft:resistance\"}]}}"), () -> {
             var engine = GentleStart.engine();
             var player = player(test, 0);
             player.removeAllEffects();
@@ -85,8 +85,8 @@ public class EffectsGameTests {
 
     @GameTest
     public void reviveKeepsItsEffectDurationAndReplenishesMissingProtectionEffects(GameTestHelper test) {
-        withConfig(test, settings("{\"effects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:night_vision\"}]},"
-                + "\"revive\":{\"minutes\":-1,\"effects\":[{\"id\":\"minecraft:fire_resistance\",\"durationSeconds\":7}]}}"), () -> {
+        withConfig(test, settings("{\"protectionEffects\":{\"minutes\":1,\"list\":[{\"id\":\"minecraft:night_vision\"}]},"
+                + "\"preventDeath\":{\"minutes\":-1,\"effects\":[{\"id\":\"minecraft:fire_resistance\",\"durationSeconds\":7}]}}"), () -> {
             var player = player(test, 100);
             player.removeAllEffects();
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);

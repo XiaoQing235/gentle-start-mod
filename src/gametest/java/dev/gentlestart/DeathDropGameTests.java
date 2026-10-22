@@ -44,8 +44,8 @@ public class DeathDropGameTests {
 
     @GameTest
     public void onlyActualDeathDropsReceiveExtendedLifetime(GameTestHelper test) {
-        withConfig(test, settings("{\"inventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}},"
-                + "\"deathDrops\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"keepInventory\":{\"minutes\":-1,\"keep\":{\"all\":false,\"slots\":[0]}},"
+                + "\"protectDeathDrops\":{\"minutes\":-1}}"), () -> {
             ServerPlayer player = player(test, 0);
             ItemEntity manual = player.drop(new ItemStack(Items.COAL), false, true);
             test.assertFalse(protectedDrop(manual), "A live player's manual drop is ordinary");
@@ -69,26 +69,23 @@ public class DeathDropGameTests {
 
     @GameTest
     public void ageAndProtectionPersistWithoutRefreshingLifetime(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":-1}}"), () -> {
             ItemEntity item = deathDrop(test);
             TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
             item.saveWithoutId(output);
             var tag = output.buildResult();
-            // Simulate a drop saved by the previous version, without configurable lifetime fields.
-            tag.remove("gentle-start-mod:lifetime_ticks");
-            tag.remove("gentle-start-mod:age");
-            tag.putShort("Age", (short)-1234);
+            tag.putInt("gentle-start-mod:age", 1234);
             ItemEntity restored = new ItemEntity(test.getLevel(), item.getX(), item.getY(), item.getZ(), new ItemStack(Items.DIAMOND));
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
             test.assertTrue(protectedDrop(restored), "Entity protection persists through NBT");
-            test.assertValueEqual(restored.getAge(), -1234, "Loading does not reset age to minus six thousand");
+            test.assertValueEqual(restored.getAge(), 1234, "Loading preserves the elapsed lifetime");
             engine().replaceConfig(settings("{}"));
             test.assertTrue(restored.fireImmune(), "Already granted drop protection survives configuration changes");
-            tag.putShort("Age", (short)0);
+            tag.putInt("gentle-start-mod:age", 5999);
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
             restored.tick();
             test.assertFalse(restored.isRemoved(), "Drop survives the original five-minute age boundary");
-            tag.putShort("Age", (short)5998);
+            tag.putInt("gentle-start-mod:age", 11998);
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
             restored.tick();
             test.assertFalse(restored.isRemoved(), "Drop survives the tick before its extended deadline");
@@ -100,7 +97,7 @@ public class DeathDropGameTests {
 
     @GameTest
     public void configuredLifetimePersistsAndExpiresAtExactDeadline(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":3600}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":3600}}"), () -> {
             ItemEntity item = deathDrop(test);
             TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
             item.saveWithoutId(output);
@@ -109,7 +106,7 @@ public class DeathDropGameTests {
             tag.putInt("gentle-start-mod:age", 71998);
             ItemEntity restored = new ItemEntity(test.getLevel(), item.getX(), item.getY(), item.getZ(), new ItemStack(Items.DIAMOND));
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-            engine().replaceConfig(settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":1}}"));
+            engine().replaceConfig(settings("{\"protectDeathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":1}}"));
             TagValueOutput resaved = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
             restored.saveWithoutId(resaved);
             restored.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), resaved.buildResult()));
@@ -133,7 +130,7 @@ public class DeathDropGameTests {
     public void protectedEntitiesDoNotMergeButOrdinaryDropsStillDo(GameTestHelper test) {
         ItemEntity[] marked = new ItemEntity[2];
         ItemEntity[] ordinary = new ItemEntity[2];
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":-1}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
             player.getInventory().setItem(1, new ItemStack(Items.DIAMOND));
@@ -171,7 +168,7 @@ public class DeathDropGameTests {
 
     @GameTest
     public void deathDropsResistOrdinaryDamageButRespectSpecialRemoval(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":-1}}"), () -> {
             ItemEntity item = deathDrop(test);
             for (DamageSource source : new DamageSource[]{item.damageSources().inFire(), item.damageSources().lava(),
                     item.damageSources().cactus(), item.damageSources().explosion(null, null), item.damageSources().generic()}) {
@@ -197,7 +194,7 @@ public class DeathDropGameTests {
 
     @GameTest
     public void deathDropEligibilityUsesWindowAndPermanentCancellation(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":1,\"cancel\":{\"experienceLevel\":2}}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":1,\"cancel\":{\"experienceLevel\":2}}}"), () -> {
             ServerPlayer expired = player(test, 1200);
             expired.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
             expired.kill(test.getLevel());
@@ -214,7 +211,7 @@ public class DeathDropGameTests {
 
     @GameTest
     public void laterDeathContainerCleanupKeepsOriginalDropDecision(GameTestHelper test) {
-        withConfig(test, settings("{\"deathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":42}}"), () -> {
+        withConfig(test, settings("{\"protectDeathDrops\":{\"minutes\":-1,\"lifetimeSeconds\":42}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.inventoryMenu.setCarried(new ItemStack(Items.DIAMOND, 7));
             player.kill(test.getLevel());

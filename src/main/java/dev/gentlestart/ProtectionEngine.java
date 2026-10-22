@@ -38,11 +38,11 @@ public final class ProtectionEngine {
     private ProtectionConfig config;
     private int nextConditionPlayer;
 
-    public ProtectionEngine(MinecraftServer server, Path configFile, Path stateFile) {
+    public ProtectionEngine(MinecraftServer server, Path configFile, Path stateDirectory) {
         this.server = server;
         this.configFile = configFile;
         this.config = ProtectionConfig.load(configFile);
-        this.states = new PlayerStates(stateFile);
+        this.states = new PlayerStates(stateDirectory);
         validate(config);
     }
 
@@ -139,7 +139,7 @@ public final class ProtectionEngine {
         if (!config.enabled()) {
             return;
         }
-        int count = Math.min(config.playersPerTick(), players.size());
+        int count = Math.min(config.timeConditionChecksPerTick(), players.size());
         for (int checked = 0; checked < count; checked++) {
             nextConditionPlayer %= players.size();
             ServerPlayer player = players.get(nextConditionPlayer);
@@ -244,7 +244,7 @@ public final class ProtectionEngine {
         if (triggered) {
             states.cancel(id, feature, "auto: " + String.join(", ", required.stream()
                     .filter(condition -> observed.contains(feature.id() + ":" + condition)).toList()));
-            player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.displayName() + "（" + feature.configName() + "）已因达到取消条件而结束。"));
+            player.sendSystemMessage(Component.literal("[Gentle Start] " + feature.displayName() + "（" + feature.id() + "）已因达到取消条件而结束。"));
         }
     }
 
@@ -263,7 +263,7 @@ public final class ProtectionEngine {
             var effects = profile(player).effects();
             int duration = effects.window().minutes() < 0 ? MobEffectInstance.INFINITE_DURATION
                     : (int) Math.min(Integer.MAX_VALUE, Math.ceil(effects.window().minutes() * 1200 - playedTicks(player)));
-            for (ProtectionRules.Effect effect : effects.list()) {
+            for (ProtectionRules.SustainedEffect effect : effects.list()) {
                 MobEffectInstance current = player.getEffect(effect.effect());
                 int amplifier = effect.level() - 1;
                 // Keep vanilla periodic-effect timing and stronger external effects. A small tolerance covers tick ordering.

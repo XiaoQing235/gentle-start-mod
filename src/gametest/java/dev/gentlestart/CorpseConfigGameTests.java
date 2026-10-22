@@ -15,11 +15,11 @@ public class CorpseConfigGameTests {
     @GameTest
     public void corpseConfigurationDefaultsInheritsAndRoundTrips(GameTestHelper test) {
         var defaults = ProtectionConfig.defaults().defaultProfile().corpse();
-        test.assertValueEqual(defaults.window().minutes(), 0.0, "Existing installations do not enable corpses automatically");
+        test.assertValueEqual(defaults.window().minutes(), 0.0, "Corpses are disabled by default");
         test.assertValueEqual(defaults.mode(), "barrel", "Barrel is the default presentation");
         test.assertTrue(defaults.saveExperience(), "Experience saving defaults to enabled");
         UUID id = UUID.randomUUID();
-        var config = settings("{\"corpse\":{\"minutes\":-1,\"mode\":\"player\",\"saveExperience\":false}}")
+        var config = settings("{\"deathCorpse\":{\"minutes\":-1,\"mode\":\"player\",\"saveExperience\":false}}")
                 .withPlayer(id, json("{\"deathCorpse\":{\"saveExperience\":true}}"));
         test.assertValueEqual(config.profile(id).corpse().mode(), "player", "Per-player rules inherit the presentation");
         test.assertValueEqual(config.profile(id).window(Feature.CORPSE).minutes(), -1.0, "Per-player rules inherit the window");
@@ -46,14 +46,14 @@ public class CorpseConfigGameTests {
         UUID id = UUID.randomUUID();
         rejected(test, () -> ProtectionConfig.defaults().withPlayer(id, json("{\"deathCorpse\":{\"minutes\":-1}}")),
                 "A player corpse rule cannot silently coexist with inherited inventory protection");
-        var corpse = settings("{\"corpse\":{\"minutes\":-1}}");
+        var corpse = settings("{\"deathCorpse\":{\"minutes\":-1}}");
         rejected(test, () -> corpse.withPlayer(id, json("{\"keepInventory\":{\"minutes\":1}}")),
                 "A player inventory rule cannot coexist with inherited corpse protection");
-        var inventoryOverride = settings("{}").withPlayer(id, json("{\"inventory\":{\"minutes\":1}}"));
+        var inventoryOverride = settings("{}").withPlayer(id, json("{\"keepInventory\":{\"minutes\":1}}"));
         JsonObject changedDefaults = inventoryOverride.document();
-        changedDefaults.getAsJsonObject("defaults").getAsJsonObject("corpse").addProperty("minutes", -1);
+        changedDefaults.getAsJsonObject("defaults").getAsJsonObject("deathCorpse").addProperty("minutes", -1);
         rejected(test, () -> ProtectionConfig.parse(changedDefaults), "Default updates also validate effective player rules");
-        var switched = corpse.withPlayer(id, json("{\"corpse\":{\"minutes\":0},\"inventory\":{\"minutes\":-1}}"));
+        var switched = corpse.withPlayer(id, json("{\"deathCorpse\":{\"minutes\":0},\"keepInventory\":{\"minutes\":-1}}"));
         test.assertValueEqual(switched.profile(id).inventory().window().minutes(), -1.0,
                 "An explicit player override can switch between mutually exclusive features");
         test.succeed();

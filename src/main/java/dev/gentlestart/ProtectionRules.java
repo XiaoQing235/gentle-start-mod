@@ -114,13 +114,22 @@ public final class ProtectionRules {
         ).apply(instance, Effect::new));
     }
 
-    public record Effects(Window window, List<Effect> list) {
+    public record SustainedEffect(Holder<MobEffect> effect, int level, boolean showParticles, boolean showIcon) {
+        public static final Codec<SustainedEffect> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Effect.TYPE.fieldOf("id").forGetter(SustainedEffect::effect),
+                field(Codec.intRange(1, 256), "level", 1).forGetter(SustainedEffect::level),
+                field(Codec.BOOL, "showParticles", false).forGetter(SustainedEffect::showParticles),
+                field(Codec.BOOL, "showIcon", true).forGetter(SustainedEffect::showIcon)
+        ).apply(instance, SustainedEffect::new));
+    }
+
+    public record Effects(Window window, List<SustainedEffect> list) {
         public static final Effects DEFAULT = new Effects(new Window(120, Cancellation.NONE), List.of(
-                new Effect(MobEffects.RESISTANCE, 1, 15, false, true),
-                new Effect(MobEffects.NIGHT_VISION, 1, 15, false, true)));
+                new SustainedEffect(MobEffects.RESISTANCE, 1, false, true),
+                new SustainedEffect(MobEffects.NIGHT_VISION, 1, false, true)));
         public static final Codec<Effects> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 Window.CODEC.forGetter(Effects::window),
-                field(Effect.CODEC.listOf(), "list", List.<Effect>of()).forGetter(Effects::list)
+                field(SustainedEffect.CODEC.listOf(), "list", List.<SustainedEffect>of()).forGetter(Effects::list)
         ).apply(instance, Effects::new));
 
         public Effects {
@@ -203,17 +212,17 @@ public final class ProtectionRules {
                 new Window(120, Cancellation.NONE), Revive.DEFAULT, Effects.DEFAULT, Pvp.DEFAULT,
                 Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, DeathDrops.DEFAULT, Corpse.DEFAULT);
         public static final Codec<Profile> CODEC = RecordCodecBuilder.create(instance -> instance.group(
-                field(Inventory.CODEC, "inventory", Inventory.DEFAULT).forGetter(Profile::inventory),
-                field(Experience.CODEC, "experience", Experience.DEFAULT).forGetter(Profile::experience),
-                field(Window.CODEC.codec(), "score", DEFAULT.score()).forGetter(Profile::score),
-                field(Revive.CODEC, "revive", Revive.DEFAULT).forGetter(Profile::revive),
-                field(Effects.CODEC, "effects", Effects.DEFAULT).forGetter(Profile::effects),
-                field(Pvp.CODEC, "pvp", Pvp.DEFAULT).forGetter(Profile::pvp),
+                field(Inventory.CODEC, "keepInventory", Inventory.DEFAULT).forGetter(Profile::inventory),
+                field(Experience.CODEC, "keepExperience", Experience.DEFAULT).forGetter(Profile::experience),
+                field(Window.CODEC.codec(), "keepScore", DEFAULT.score()).forGetter(Profile::score),
+                field(Revive.CODEC, "preventDeath", Revive.DEFAULT).forGetter(Profile::revive),
+                field(Effects.CODEC, "protectionEffects", Effects.DEFAULT).forGetter(Profile::effects),
+                field(Pvp.CODEC, "pvpProtection", Pvp.DEFAULT).forGetter(Profile::pvp),
                 field(Reduction.CODEC, "damageReduction", Reduction.DEFAULT).forGetter(Profile::damageReduction),
-                field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
-                field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection),
-                field(DeathDrops.CODEC, "deathDrops", DeathDrops.DEFAULT).forGetter(Profile::deathDrops),
-                field(Corpse.CODEC, "corpse", Corpse.DEFAULT).forGetter(Profile::corpse)
+                field(MobRange.CODEC, "mobDetectionRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
+                field(RespawnProtection.CODEC, "respawnInvulnerability", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection),
+                field(DeathDrops.CODEC, "protectDeathDrops", DeathDrops.DEFAULT).forGetter(Profile::deathDrops),
+                field(Corpse.CODEC, "deathCorpse", Corpse.DEFAULT).forGetter(Profile::corpse)
         ).apply(instance, Profile::new));
 
         public Window window(Feature feature) {

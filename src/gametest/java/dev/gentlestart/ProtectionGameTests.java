@@ -6,6 +6,7 @@ import com.mojang.serialization.JsonOps;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
@@ -40,8 +41,14 @@ public class ProtectionGameTests {
     public void configurationFilesRejectUnsupportedFields(GameTestHelper test) throws Exception {
         Path file = Files.createTempFile("gentlestart-invalid-config-", ".json");
         try {
-            for (String document : List.of("{\"protectionSeconds\":600}",
-                    "{\"defaults\":{\"revive\":{\"unknownProtectionOption\":8}}}")) {
+            var documents = new ArrayList<>(List.of("{\"protectionSeconds\":600}", "{\"playersPerTick\":1}",
+                    "{\"defaults\":{\"protectionEffects\":{\"list\":[{\"id\":\"minecraft:speed\",\"durationSeconds\":15}]}}}",
+                    "{\"defaults\":{\"preventDeath\":{\"unknownProtectionOption\":8}}}"));
+            for (String oldName : List.of("inventory", "experience", "score", "revive", "effects", "pvp",
+                    "mobRange", "respawnProtection", "deathDrops", "corpse")) {
+                documents.add("{\"defaults\":{\"" + oldName + "\":{}}}");
+            }
+            for (String document : documents) {
                 Files.writeString(file, document);
                 boolean rejected = false;
                 try {
@@ -145,7 +152,7 @@ public class ProtectionGameTests {
     @GameTest
     public void inventoryAndExperienceOptionsAreIndependent(GameTestHelper test) {
         for (boolean keepItems : new boolean[]{true, false}) {
-            withConfig(test, configuration("{\"inventory\":{\"minutes\":" + (keepItems ? 120 : 0) + "},\"experience\":{\"minutes\":" + (keepItems ? 0 : 120) + "},\"effects\":{\"minutes\":0}}"), () -> {
+            withConfig(test, configuration("{\"keepInventory\":{\"minutes\":" + (keepItems ? 120 : 0) + "},\"keepExperience\":{\"minutes\":" + (keepItems ? 0 : 120) + "},\"protectionEffects\":{\"minutes\":0}}"), () -> {
                 ServerPlayer player = player(test, 0);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
                 giveExperience(player);
@@ -165,7 +172,7 @@ public class ProtectionGameTests {
     @GameTest
     public void disabledAndZeroDurationDoNotProtect(GameTestHelper test) {
         for (ProtectionConfig config : List.of(ProtectionConfig.parse(JsonParser.parseString("{\"enabled\":false}").getAsJsonObject()),
-                configuration("{\"inventory\":{\"minutes\":0},\"experience\":{\"minutes\":0},\"score\":{\"minutes\":0},\"effects\":{\"minutes\":0}}"))) {
+                configuration("{\"keepInventory\":{\"minutes\":0},\"keepExperience\":{\"minutes\":0},\"keepScore\":{\"minutes\":0},\"protectionEffects\":{\"minutes\":0}}"))) {
             withConfig(test, config, () -> {
                 ServerPlayer player = player(test, 0);
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
@@ -218,21 +225,21 @@ public class ProtectionGameTests {
     public void invalidConfigurationFailsClearly(GameTestHelper test) {
         for (String json : List.of("null", "[]", "{\"enabled\":\"yes\"}",
                 "{\"players\":{\"invalid-uuid\":{}}}", "{\"defaults\":{\"unknown\":{}}}",
-                "{\"defaults\":{\"inventory\":{\"minuets\":5}}}",
-                "{\"defaults\":{\"inventory\":{\"keep\":{\"slots\":[43]}}}}",
-                "{\"defaults\":{\"experience\":{\"ratio\":1.1}}}",
-                "{\"defaults\":{\"revive\":{\"uses\":-2}}}",
-                "{\"defaults\":{\"revive\":{\"uses\":1.5}}}",
-                "{\"defaults\":{\"revive\":{\"health\":0}}}",
-                "{\"defaults\":{\"revive\":{\"health\":-1}}}",
-                "{\"defaults\":{\"revive\":{\"health\":1e400}}}",
-                "{\"defaults\":{\"revive\":{\"health\":1e-100}}}",
-                "{\"defaults\":{\"revive\":{\"health\":true}}}",
-                "{\"defaults\":{\"inventory\":{\"keep\":{\"slots\":[0.5]}}}}",
-                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:speed\",\"durationSecond\":10}]}}}",
-                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:unknown\"}]}}}",
-                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:instant_health\"}]}}}",
-                "{\"defaults\":{\"effects\":{\"list\":[{\"id\":\"minecraft:speed\",\"level\":0}]}}}")) {
+                "{\"defaults\":{\"keepInventory\":{\"minuets\":5}}}",
+                "{\"defaults\":{\"keepInventory\":{\"keep\":{\"slots\":[43]}}}}",
+                "{\"defaults\":{\"keepExperience\":{\"ratio\":1.1}}}",
+                "{\"defaults\":{\"preventDeath\":{\"uses\":-2}}}",
+                "{\"defaults\":{\"preventDeath\":{\"uses\":1.5}}}",
+                "{\"defaults\":{\"preventDeath\":{\"health\":0}}}",
+                "{\"defaults\":{\"preventDeath\":{\"health\":-1}}}",
+                "{\"defaults\":{\"preventDeath\":{\"health\":1e400}}}",
+                "{\"defaults\":{\"preventDeath\":{\"health\":1e-100}}}",
+                "{\"defaults\":{\"preventDeath\":{\"health\":true}}}",
+                "{\"defaults\":{\"keepInventory\":{\"keep\":{\"slots\":[0.5]}}}}",
+                "{\"defaults\":{\"protectionEffects\":{\"list\":[{\"id\":\"minecraft:speed\",\"durationSecond\":10}]}}}",
+                "{\"defaults\":{\"protectionEffects\":{\"list\":[{\"id\":\"minecraft:unknown\"}]}}}",
+                "{\"defaults\":{\"protectionEffects\":{\"list\":[{\"id\":\"minecraft:instant_health\"}]}}}",
+                "{\"defaults\":{\"protectionEffects\":{\"list\":[{\"id\":\"minecraft:speed\",\"level\":0}]}}}")) {
             boolean rejected = false;
             try {
                 ProtectionConfig.parse(JsonParser.parseString(json).getAsJsonObject());
@@ -241,7 +248,7 @@ public class ProtectionGameTests {
             }
             test.assertTrue(rejected, "Invalid configuration rejected: " + json);
         }
-        var window = configuration("{\"inventory\":{\"minutes\":1}}").defaultProfile().inventory().window();
+        var window = configuration("{\"keepInventory\":{\"minutes\":1}}").defaultProfile().inventory().window();
         test.assertTrue(window.includes(1199), "Minutes use 1200 ticks");
         test.assertFalse(window.includes(1200), "Protection ends exactly at threshold");
         test.succeed();
@@ -262,25 +269,15 @@ public class ProtectionGameTests {
             Files.writeString(file, "// custom comment\n{\"timeConditionChecksPerTick\":3,\"defaults\":{\"keepInventory\":{\"minutes\":45}},"
                     + "\"players\":{\"00000000-0000-0000-0000-000000000001\":{\"protectDeathDrops\":{\"lifetimeSeconds\":900}}}}");
             ProtectionConfig named = ProtectionConfig.load(file);
-            test.assertValueEqual(named.playersPerTick(), 3, "Descriptive tick budget is read");
+            test.assertValueEqual(named.timeConditionChecksPerTick(), 3, "Descriptive tick budget is read");
             test.assertValueEqual(named.defaultProfile().inventory().window().minutes(), 45.0, "Descriptive feature is read");
             test.assertValueEqual(named.profile(UUID.fromString("00000000-0000-0000-0000-000000000001")).deathDrops().lifetimeSeconds(),
                     900, "Descriptive player override is read");
             named.save(file);
             test.assertValueEqual(ProtectionConfig.load(file).document(), named.document(), "Commented save preserves overrides");
-            Files.writeString(file, "{\"defaults\":{\"inventory\":{\"minutes\":23}}}");
-            ProtectionConfig legacy = ProtectionConfig.load(file);
-            test.assertValueEqual(legacy.defaultProfile().inventory().window().minutes(), 23.0, "Legacy names remain readable");
-            legacy.save(file);
-            test.assertTrue(Files.readString(file).contains("keepInventory"), "Saving upgrades legacy names");
-            Files.writeString(file, "{\"defaults\":{\"inventory\":{},\"keepInventory\":{}}}");
-            boolean ambiguousRejected = false;
-            try {
-                ProtectionConfig.load(file);
-            } catch (IllegalStateException expected) {
-                ambiguousRejected = true;
-            }
-            test.assertTrue(ambiguousRejected, "Duplicate old and new names are rejected");
+            test.assertFalse(named.document().getAsJsonObject("defaults").getAsJsonObject("protectionEffects")
+                    .getAsJsonArray("list").get(0).getAsJsonObject().has("durationSeconds"),
+                    "Sustained effects do not serialize an unused duration");
             Files.writeString(file, "{invalid");
             boolean rejected = false;
             try {

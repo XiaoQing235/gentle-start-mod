@@ -74,8 +74,8 @@ public class CorpseGameTests {
 
     @GameTest
     public void experienceButtonClaimsOnceWithoutBecomingAnItem(GameTestHelper test) {
-        withConfig(test, settings("{\"corpse\":{\"minutes\":-1,\"mode\":\"barrel\",\"saveExperience\":true},"
-                + "\"experience\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"deathCorpse\":{\"minutes\":-1,\"mode\":\"barrel\",\"saveExperience\":true},"
+                + "\"keepExperience\":{\"minutes\":-1}}"), () -> {
             ServerPlayer owner = player(test, 0);
             owner.getInventory().setItem(0, new ItemStack(Items.BREAD, 3));
             owner.experienceLevel = 10;
@@ -176,7 +176,7 @@ public class CorpseGameTests {
     }
 
     @GameTest
-    public void corpseOwnerIdentityUsesPersistedUuidAndFailsClosedForLegacyData(GameTestHelper test) {
+    public void corpseOwnerIdentityUsesPersistedUuidAndRejectsInvalidData(GameTestHelper test) {
         ServerPlayer owner = player(test, 0);
         CorpseData original = new CorpseData(owner.getUUID(), "OriginalOwner", 160);
         TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
@@ -189,14 +189,17 @@ public class CorpseGameTests {
         test.assertTrue(restored.canAccess(renamedOwner), "A name change does not lock out the same owner UUID");
         test.assertFalse(restored.isOwner(sameNameStranger), "Matching the stored display name never grants ownership");
         test.assertFalse(restored.canAccess(sameNameStranger), "Another UUID cannot access a same-name corpse");
-        tag.remove("ownerId");
-        CorpseData legacy = CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-        test.assertFalse(legacy.canAccess(owner), "A legacy corpse without an owner UUID is not public");
-        test.assertFalse(legacy.canAccess(sameNameStranger), "Legacy names cannot be used to claim an unowned corpse");
-        test.assertValueEqual(legacy.experience(), 160, "Rejecting a legacy identity preserves its saved contents");
-        tag.putString("ownerId", "not-a-uuid");
-        CorpseData malformed = CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
-        test.assertFalse(malformed.canAccess(owner), "An invalid saved owner UUID also fails closed");
+        for (boolean missing : new boolean[]{true, false}) {
+            if (missing) tag.remove("ownerId");
+            else tag.putString("ownerId", "not-a-uuid");
+            boolean rejected = false;
+            try {
+                CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+            } catch (java.util.NoSuchElementException expected) {
+                rejected = true;
+            }
+            test.assertTrue(rejected, "Current corpse data requires a valid owner UUID");
+        }
         test.succeed();
     }
 
@@ -405,8 +408,8 @@ public class CorpseGameTests {
 
     @GameTest
     public void disabledCorpseExperienceHonorsPersonalExperienceRetention(GameTestHelper test) {
-        withConfig(test, settings("{\"corpse\":{\"minutes\":-1,\"saveExperience\":false},"
-                + "\"experience\":{\"minutes\":-1}}"), () -> {
+        withConfig(test, settings("{\"deathCorpse\":{\"minutes\":-1,\"saveExperience\":false},"
+                + "\"keepExperience\":{\"minutes\":-1}}"), () -> {
             ServerPlayer owner = player(test, 0);
             owner.giveExperiencePoints(160);
             int orbs = ProtectionGameTests.orbs(owner);
@@ -563,7 +566,7 @@ public class CorpseGameTests {
     }
 
     private static ProtectionConfig config(String mode, boolean saveExperience) {
-        return settings("{\"corpse\":{\"minutes\":-1,\"mode\":\"" + mode + "\",\"saveExperience\":" + saveExperience + "}}");
+        return settings("{\"deathCorpse\":{\"minutes\":-1,\"mode\":\"" + mode + "\",\"saveExperience\":" + saveExperience + "}}");
     }
 
     private static Player identityPlayer(GameTestHelper test, UUID id, String name) {

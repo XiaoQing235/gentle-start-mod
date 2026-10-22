@@ -20,7 +20,7 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void lethalInterceptionLeavesFullInventoryAndOpenContainerUntouched(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":3}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"uses\":1,\"invulnerabilitySeconds\":3}}"), () -> {
             ServerPlayer player = player(test, 0);
             for (int slot = 0; slot < 36; slot++) {
                 player.getInventory().setItem(slot, new ItemStack(Items.COBBLESTONE, 64));
@@ -50,7 +50,7 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void reviveChecksFinalDamageAfterReductionAndAbsorption(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":0},"
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"invulnerabilitySeconds\":0},"
                 + "\"damageReduction\":{\"minutes\":-1,\"reduction\":0.5}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.setHealth(10);
@@ -69,11 +69,10 @@ public class RecoveryProtectionGameTests {
     }
 
     @GameTest
-    public void reviveTimerPersistsAndOldStateFilesRemainReadable(GameTestHelper test) throws Exception {
+    public void reviveAndRespawnTimersPersistIndependently(GameTestHelper test) throws Exception {
         java.nio.file.Path root = java.nio.file.Files.createTempDirectory("gentlestart-revive-state-");
-        java.nio.file.Path file = root.resolve("state.json");
+        java.nio.file.Path file = root.resolve("players");
         try {
-            java.nio.file.Files.writeString(file, "{}");
             PlayerStates states = new PlayerStates(file);
             var id = java.util.UUID.randomUUID();
             states.revive(id, 120);
@@ -83,13 +82,6 @@ public class RecoveryProtectionGameTests {
             test.assertValueEqual(loaded.revivesUsed(), 1, "Charge usage persists");
             test.assertValueEqual(loaded.reviveInvulnerableUntil(), 120L, "Revive deadline persists independently");
             test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Respawn deadline is unchanged");
-            var playerFile = StatePersistenceGameTests.playerFile(file, id);
-            var json = com.google.gson.JsonParser.parseString(java.nio.file.Files.readString(playerFile)).getAsJsonObject();
-            json.remove("reviveInvulnerableUntil");
-            java.nio.file.Files.writeString(playerFile, json.toString());
-            loaded = new PlayerStates(file).get(id);
-            test.assertValueEqual(loaded.reviveInvulnerableUntil(), 0L, "Old state grants no new revive immunity");
-            test.assertValueEqual(loaded.invulnerableUntil(), 240L, "Old respawn deadline is preserved");
         } finally {
             StatePersistenceGameTests.delete(root);
         }
@@ -101,13 +93,13 @@ public class RecoveryProtectionGameTests {
         for (String invalid : new String[]{"-1", "1.5", "86401", "null", "\"5\""}) {
             boolean rejected = false;
             try {
-                settings("{\"revive\":{\"invulnerabilitySeconds\":" + invalid + "}}");
+                settings("{\"preventDeath\":{\"invulnerabilitySeconds\":" + invalid + "}}");
             } catch (IllegalArgumentException | IllegalStateException expected) {
                 rejected = true;
             }
             test.assertTrue(rejected, "Invalid immunity duration is rejected: " + invalid);
         }
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":7,"
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"invulnerabilitySeconds\":7,"
                 + "\"cancel\":{\"experienceLevel\":2}}}"), () -> {
             ServerPlayer player = player(test, 0);
             var override = com.google.gson.JsonParser.parseString("{\"preventDeath\":{\"health\":6}}").getAsJsonObject();
@@ -125,8 +117,8 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void realDeathEndsReviveImmunityAndRespawnUsesOnlyItsOwnDuration(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":9},"
-                + "\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":2}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"invulnerabilitySeconds\":9},"
+                + "\"respawnInvulnerability\":{\"minutes\":-1,\"durationSeconds\":2}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
             test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 180L, "Revive starts its own duration");
@@ -150,11 +142,11 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void configuredReviveHealthKeepsTheSameLivingPlayerWithoutDeath(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"uses\":1,\"health\":6.5}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"uses\":1,\"health\":6.5}}"), () -> {
             for (float health : new float[]{6.5F, 40.0F, 0.5F}) {
                 ServerPlayer player = player(test, 0);
                 if (health != 6.5F) {
-                    var override = com.google.gson.JsonParser.parseString("{\"revive\":{\"health\":" + health + "}}").getAsJsonObject();
+                    var override = com.google.gson.JsonParser.parseString("{\"preventDeath\":{\"health\":" + health + "}}").getAsJsonObject();
                     engine().replaceConfig(engine().config().withPlayer(player.getUUID(), override));
                 }
                 player.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 3));
@@ -187,7 +179,7 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void normalDeathRespawnGrantsImmunityWithoutRevive(GameTestHelper test) {
-        withConfig(test, settings("{\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
+        withConfig(test, settings("{\"respawnInvulnerability\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
             ServerPlayer previous = player(test, 0);
             test.assertValueEqual(engine().respawnInvulnerabilityTicks(previous), 0L, "Joining does not grant respawn immunity");
             previous.kill(test.getLevel());
@@ -213,8 +205,8 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void immunityAndReviveCanBeCancelledAndResetIndependently(GameTestHelper test) {
-        withConfig(test, settings("{\"revive\":{\"minutes\":-1,\"invulnerabilitySeconds\":2},"
-                + "\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
+        withConfig(test, settings("{\"preventDeath\":{\"minutes\":-1,\"invulnerabilitySeconds\":2},"
+                + "\"respawnInvulnerability\":{\"minutes\":-1,\"durationSeconds\":5}}"), () -> {
             ServerPlayer player = player(test, 0);
             player.hurtServer(test.getLevel(), player.damageSources().generic(), 1000);
             test.assertValueEqual(engine().reviveInvulnerabilityTicks(player), 40L, "Revive grants its own configured window");
@@ -244,11 +236,11 @@ public class RecoveryProtectionGameTests {
 
     @GameTest
     public void immunityHasIndependentUuidWindowAndAutomaticCancellation(GameTestHelper test) {
-        withConfig(test, settings("{\"respawnProtection\":{\"minutes\":1,\"durationSeconds\":0}}"), () -> {
+        withConfig(test, settings("{\"respawnInvulnerability\":{\"minutes\":1,\"durationSeconds\":0}}"), () -> {
             ServerPlayer player = player(test, 0);
             engine().protectRespawn(player);
             test.assertValueEqual(engine().respawnInvulnerabilityTicks(player), 0L, "Zero duration grants no immunity");
-            var rule = com.google.gson.JsonParser.parseString("{\"respawnProtection\":{\"minutes\":-1,\"durationSeconds\":3,"
+            var rule = com.google.gson.JsonParser.parseString("{\"respawnInvulnerability\":{\"minutes\":-1,\"durationSeconds\":3,"
                     + "\"cancel\":{\"experienceLevel\":2}}}").getAsJsonObject();
             engine().replaceConfig(engine().config().withPlayer(player.getUUID(), rule));
             player.getStats().setValue(player, Stats.CUSTOM.get(Stats.PLAY_TIME), 1200);
