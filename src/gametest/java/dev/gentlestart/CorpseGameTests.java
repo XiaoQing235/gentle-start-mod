@@ -5,8 +5,10 @@ import static dev.gentlestart.ProtectionGameTests.player;
 import static dev.gentlestart.ProtectionGameTests.respawn;
 import static dev.gentlestart.ProtectionGameTests.withConfig;
 
+import com.mojang.authlib.GameProfile;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.gametest.v1.GameTest;
 import net.minecraft.core.BlockPos;
@@ -22,13 +24,18 @@ import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.decoration.Mannequin;
 import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.ContainerLevelAccess;
 import net.minecraft.world.inventory.CraftingMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Explosion;
+import net.minecraft.world.level.GameType;
+import net.minecraft.world.level.ServerExplosion;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BarrelBlockEntity;
+import net.minecraft.world.level.block.entity.HopperBlockEntity;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.TagValueInput;
 import net.minecraft.world.level.storage.TagValueOutput;
@@ -45,9 +52,10 @@ public class CorpseGameTests {
     @GameTest
     public void playerDeathPreservesLayoutAndOpensFromRightClick(GameTestHelper test) {
         withConfig(test, config("player", true), () -> {
-            CorpseHolder holder = assertDeathLayout(test, "player");
+            ServerPlayer visitor = assertDeathLayout(test, "player");
+            CorpseHolder holder = corpses(test).getFirst();
             Mannequin model = (Mannequin) holder;
-            ServerPlayer visitor = player(test, 0);
+            visitor.snapTo(model.position().add(1, 0, 0));
             visitor.interactOn(model, InteractionHand.MAIN_HAND, Vec3.ZERO);
             test.assertTrue(visitor.containerMenu instanceof CorpseMenu, "Right-click opens the corpse's inventory");
             CorpseMenu menu = (CorpseMenu) visitor.containerMenu;
@@ -86,14 +94,19 @@ public class CorpseGameTests {
                 test.assertTrue(visitor.position().distanceToSqr(Vec3.atCenterOf(barrel.getBlockPos())) < 4,
                         "The visitor is physically beside the captured barrel");
                 test.assertTrue(visitor.isWithinBlockInteractionRange(barrel.getBlockPos(), 4), "Native block interaction range accepts the visitor");
-                test.assertFalse(visitor.isSpectator(), "A visitor can claim the corpse's contents");
+                test.assertFalse(visitor.isSpectator(), "Both test players are ordinary nonspectators");
             }
             CorpseMenu firstMenu = new CorpseMenu(1, first.getInventory(), holder);
             CorpseMenu secondMenu = new CorpseMenu(2, second.getInventory(), holder);
             test.assertTrue(firstMenu.stillValid(first), "The respawned owner's menu is valid before claiming");
-            test.assertTrue(secondMenu.stillValid(second), "The concurrent visitor's menu is valid before claiming");
+            test.assertFalse(secondMenu.stillValid(second), "The concurrent nonowner's menu is invalid before claiming");
             test.assertTrue(firstMenu.getSlot(49).getItem().is(Items.EXPERIENCE_BOTTLE), "Experience is shown in row six, column five");
             test.assertValueEqual(first.totalExperience, 0, "Corpse storage prevents personal experience retention from duplicating the claim");
+            secondMenu.clicked(49, 0, ContainerInput.PICKUP, second);
+            secondMenu.clicked(27, 0, ContainerInput.QUICK_MOVE, second);
+            test.assertValueEqual(second.totalExperience, 0, "A nonowner cannot claim experience before the owner");
+            test.assertValueEqual(second.getInventory().countItem(Items.BREAD), 0, "A nonowner cannot take items before the owner");
+            test.assertValueEqual(holder.gentleStart$corpse().experience(), 173, "Denied access preserves all experience for the owner");
             int drops = drops(test).size();
             first.getInventory().setItem(0, new ItemStack(Items.DIAMOND));
             firstMenu.clicked(49, 0, ContainerInput.SWAP, first);
@@ -108,7 +121,7 @@ public class CorpseGameTests {
             firstMenu.clicked(49, 0, ContainerInput.PICKUP, first);
             secondMenu.clicked(49, 0, ContainerInput.PICKUP, second);
             test.assertValueEqual(first.totalExperience, 173, "Repeat clicks cannot claim again");
-            test.assertValueEqual(second.totalExperience, 0, "A menu opened before the claim cannot claim again");
+            test.assertValueEqual(second.totalExperience, 0, "The nonowner still cannot claim after the owner");
             test.assertTrue(firstMenu.getCarried().isEmpty(), "Claiming awards points without taking a bottle");
             test.assertValueEqual(first.getInventory().countItem(Items.EXPERIENCE_BOTTLE), 0, "Claiming does not create a usable bottle");
             test.assertTrue(firstMenu.getSlot(49).getItem().isEmpty(), "The claimed experience icon disappears");
@@ -152,10 +165,182 @@ public class CorpseGameTests {
                     test.assertValueEqual(loaded.getProfile(), model.getProfile(), "The player's skin profile survives saving");
                 }
                 test.assertTrue(restored.gentleStart$corpse() != null, "Corpse metadata survives saving: " + mode);
+                test.assertTrue(restored.gentleStart$corpse().isOwner(owner), "The owner's UUID survives saving: " + mode);
                 test.assertValueEqual(restored.gentleStart$inventory().getContainerSize(), 54, "All six rows survive loading: " + mode);
                 assertStack(test, restored.gentleStart$inventory().getItem(27), new ItemStack(Items.DIAMOND, 7), "Original hotbar stack survives: " + mode);
                 assertStack(test, restored.gentleStart$inventory().getItem(53), new ItemStack(Items.EMERALD, 17), "Last extra slot survives: " + mode);
                 test.assertValueEqual(restored.gentleStart$corpse().experience(), 160, "Saved experience survives: " + mode);
+            });
+        }
+        test.succeed();
+    }
+
+    @GameTest
+    public void corpseOwnerIdentityUsesPersistedUuidAndFailsClosedForLegacyData(GameTestHelper test) {
+        ServerPlayer owner = player(test, 0);
+        CorpseData original = new CorpseData(owner.getUUID(), "OriginalOwner", 160);
+        TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, test.getLevel().registryAccess());
+        original.save(output);
+        var tag = output.buildResult();
+        CorpseData restored = CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+        Player renamedOwner = identityPlayer(test, owner.getUUID(), "RenamedOwner");
+        Player sameNameStranger = identityPlayer(test, UUID.randomUUID(), "OriginalOwner");
+        test.assertTrue(restored.canAccess(owner), "A saved corpse accepts its original owner's UUID");
+        test.assertTrue(restored.canAccess(renamedOwner), "A name change does not lock out the same owner UUID");
+        test.assertFalse(restored.isOwner(sameNameStranger), "Matching the stored display name never grants ownership");
+        test.assertFalse(restored.canAccess(sameNameStranger), "Another UUID cannot access a same-name corpse");
+        tag.remove("ownerId");
+        CorpseData legacy = CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+        test.assertFalse(legacy.canAccess(owner), "A legacy corpse without an owner UUID is not public");
+        test.assertFalse(legacy.canAccess(sameNameStranger), "Legacy names cannot be used to claim an unowned corpse");
+        test.assertValueEqual(legacy.experience(), 160, "Rejecting a legacy identity preserves its saved contents");
+        tag.putString("ownerId", "not-a-uuid");
+        CorpseData malformed = CorpseData.load(TagValueInput.create(ProblemReporter.DISCARDING, test.getLevel().registryAccess(), tag));
+        test.assertFalse(malformed.canAccess(owner), "An invalid saved owner UUID also fails closed");
+        test.succeed();
+    }
+
+    @GameTest
+    public void bothCorpseModesDenyNonownerOpenAndForgedMenuTransfers(GameTestHelper test) {
+        for (String mode : List.of("barrel", "player")) {
+            withConfig(test, config(mode, true), () -> {
+                List<CorpseHolder> before = corpses(test);
+                ServerPlayer deadOwner = player(test, 0);
+                deadOwner.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
+                deadOwner.giveExperiencePoints(160);
+                deadOwner.kill(test.getLevel());
+                CorpseHolder holder = corpses(test).stream().filter(corpse -> !before.contains(corpse)).findFirst().orElseThrow();
+                ServerPlayer owner = respawn(deadOwner);
+                ServerPlayer stranger = player(test, 0);
+                Vec3 position = holder instanceof BarrelBlockEntity barrel
+                        ? Vec3.atCenterOf(barrel.getBlockPos()) : ((Mannequin) holder).position();
+                owner.snapTo(position.add(1, 0, 0));
+                stranger.snapTo(position.add(1, 0, 0));
+                openCorpse(stranger, holder);
+                test.assertTrue(stranger.containerMenu == stranger.inventoryMenu,
+                        "The actual interaction refuses a nonowner's open request: " + mode);
+                CorpseMenu forged = new CorpseMenu(5, stranger.getInventory(), holder);
+                test.assertFalse(forged.stillValid(stranger), "A forged nonowner menu is invalid: " + mode);
+                test.assertFalse(forged.getSlot(27).mayPickup(stranger), "Stored slots reject nonowner pickup: " + mode);
+                test.assertTrue(forged.quickMoveStack(stranger, 27).isEmpty(), "Direct quick-move rejects nonowners: " + mode);
+                forged.clicked(27, 0, ContainerInput.PICKUP, stranger);
+                forged.clicked(27, 0, ContainerInput.QUICK_MOVE, stranger);
+                forged.clicked(49, 0, ContainerInput.PICKUP, stranger);
+                forged.clicked(49, 0, ContainerInput.QUICK_MOVE, stranger);
+                test.assertTrue(forged.getCarried().isEmpty(), "Denied clicks never move a stack to the cursor: " + mode);
+                test.assertValueEqual(stranger.getInventory().countItem(Items.DIAMOND), 0, "Denied clicks never transfer stored items: " + mode);
+                test.assertValueEqual(stranger.totalExperience, 0, "Denied clicks never award experience: " + mode);
+                test.assertValueEqual(holder.gentleStart$inventory().countItem(Items.DIAMOND), 7, "All items remain for the owner: " + mode);
+                test.assertValueEqual(holder.gentleStart$corpse().experience(), 160, "All experience remains for the owner: " + mode);
+                forged.removed(stranger);
+                openCorpse(owner, holder);
+                test.assertTrue(owner.containerMenu instanceof CorpseMenu, "The respawned owner can open the corpse: " + mode);
+                CorpseMenu authorized = (CorpseMenu) owner.containerMenu;
+                test.assertTrue(authorized.stillValid(owner), "The owner's actual menu remains valid: " + mode);
+                authorized.clicked(27, 0, ContainerInput.QUICK_MOVE, owner);
+                authorized.clicked(49, 0, ContainerInput.PICKUP, owner);
+                test.assertValueEqual(owner.getInventory().countItem(Items.DIAMOND), 7, "The owner can retrieve the original items: " + mode);
+                test.assertValueEqual(owner.totalExperience, 160, "The owner can retrieve the original experience: " + mode);
+                owner.closeContainer();
+            });
+        }
+        test.succeed();
+    }
+
+    @GameTest
+    public void hoppersCannotExtractCorpseItemsButCanExtractOrdinaryBarrels(GameTestHelper test) {
+        withConfig(test, config("barrel", true), () -> {
+            ServerPlayer owner = player(test, 0);
+            owner.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
+            owner.kill(test.getLevel());
+            BarrelBlockEntity corpse = (BarrelBlockEntity) corpses(test).getFirst();
+            BlockPos hopperPosition = corpse.getBlockPos().below();
+            test.getLevel().setBlockAndUpdate(hopperPosition, Blocks.HOPPER.defaultBlockState());
+            HopperBlockEntity hopper = (HopperBlockEntity) test.getLevel().getBlockEntity(hopperPosition);
+            test.assertFalse(HopperBlockEntity.suckInItems(test.getLevel(), hopper), "A real hopper cannot bypass corpse ownership");
+            test.assertValueEqual(hopper.countItem(Items.DIAMOND), 0, "The hopper receives no corpse items");
+            test.assertValueEqual(corpse.countItem(Items.DIAMOND), 7, "Hopper extraction preserves every corpse item");
+            BlockPos ordinaryPosition = corpse.getBlockPos().east(2);
+            test.getLevel().setBlockAndUpdate(ordinaryPosition, Blocks.BARREL.defaultBlockState());
+            test.getLevel().setBlockAndUpdate(ordinaryPosition.below(), Blocks.HOPPER.defaultBlockState());
+            BarrelBlockEntity ordinary = (BarrelBlockEntity) test.getLevel().getBlockEntity(ordinaryPosition);
+            HopperBlockEntity ordinaryHopper = (HopperBlockEntity) test.getLevel().getBlockEntity(ordinaryPosition.below());
+            ordinary.setItem(0, new ItemStack(Items.EMERALD, 3));
+            test.assertTrue(HopperBlockEntity.suckInItems(test.getLevel(), ordinaryHopper), "An ordinary barrel still permits hopper extraction");
+            test.assertValueEqual(ordinaryHopper.countItem(Items.EMERALD), 1, "Ordinary extraction transfers one item");
+            test.assertValueEqual(ordinary.countItem(Items.EMERALD), 2, "Ordinary extraction removes only the transferred item");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void corpseBarrelsBlockNonownerBreakingAndExplosionsButAllowOwnerBreaking(GameTestHelper test) {
+        withConfig(test, config("barrel", true), () -> {
+            ServerPlayer deadOwner = player(test, 0);
+            deadOwner.getInventory().setItem(0, new ItemStack(Items.DIAMOND, 7));
+            deadOwner.giveExperiencePoints(160);
+            deadOwner.kill(test.getLevel());
+            CorpseHolder holder = corpses(test).getFirst();
+            BarrelBlockEntity barrel = (BarrelBlockEntity) holder;
+            BlockPos position = barrel.getBlockPos();
+            ServerPlayer stranger = player(test, 0);
+            test.assertFalse(stranger.gameMode.destroyBlock(position), "A survival nonowner cannot break the corpse barrel");
+            stranger.setGameMode(GameType.CREATIVE);
+            test.assertFalse(stranger.gameMode.destroyBlock(position), "Creative mode does not bypass corpse ownership");
+            test.assertTrue(test.getLevel().getBlockEntity(position) == barrel, "Denied breaking keeps the same corpse in the world");
+            BlockPos ordinaryPosition = position.east(2);
+            test.getLevel().setBlockAndUpdate(ordinaryPosition, Blocks.BARREL.defaultBlockState());
+            ServerExplosion explosion = new ServerExplosion(test.getLevel(), stranger, null, null,
+                    Vec3.atCenterOf(position), 4, false, Explosion.BlockInteraction.DESTROY);
+            int diamonds = droppedCount(test, Items.DIAMOND);
+            int experience = droppedExperience(test);
+            test.getLevel().getBlockState(position).onExplosionHit(test.getLevel(), position, explosion, (stack, pos) -> {});
+            test.getLevel().getBlockState(ordinaryPosition).onExplosionHit(test.getLevel(), ordinaryPosition, explosion, (stack, pos) -> {});
+            test.assertTrue(test.getLevel().getBlockEntity(position) == barrel, "An explosion cannot destroy the locked corpse barrel");
+            test.assertTrue(test.getLevel().getBlockState(ordinaryPosition).isAir(), "Ordinary barrels retain vanilla explosion destruction");
+            test.assertValueEqual(barrel.countItem(Items.DIAMOND), 7, "Denied destruction preserves the stored items");
+            test.assertValueEqual(holder.gentleStart$corpse().experience(), 160, "Denied destruction preserves the stored experience");
+            test.assertValueEqual(droppedCount(test, Items.DIAMOND), diamonds, "Denied destruction releases no loot");
+            test.assertValueEqual(droppedExperience(test), experience, "Denied destruction releases no experience");
+            ServerPlayer owner = respawn(deadOwner);
+            owner.snapTo(Vec3.atCenterOf(position).add(1, 0, 0));
+            test.assertTrue(owner.gameMode.destroyBlock(position), "The owner can deliberately break their own corpse barrel");
+            test.assertTrue(test.getLevel().getBlockState(position).isAir(), "Owner breaking removes the barrel");
+            test.assertValueEqual(droppedCount(test, Items.DIAMOND), diamonds + 7, "Owner breaking releases the stored items once");
+            test.assertValueEqual(droppedExperience(test), experience + 160, "Owner breaking releases the stored experience once");
+        });
+        test.succeed();
+    }
+
+    @GameTest
+    public void replacingCorpseDataInvalidatesExistingMenus(GameTestHelper test) {
+        for (String mode : List.of("barrel", "player")) {
+            withConfig(test, config(mode, true), () -> {
+                List<CorpseHolder> before = corpses(test);
+                ServerPlayer deadOwner = player(test, 0);
+                deadOwner.giveExperiencePoints(160);
+                deadOwner.kill(test.getLevel());
+                CorpseHolder holder = corpses(test).stream().filter(corpse -> !before.contains(corpse)).findFirst().orElseThrow();
+                ServerPlayer owner = respawn(deadOwner);
+                Vec3 position = holder instanceof BarrelBlockEntity barrel
+                        ? Vec3.atCenterOf(barrel.getBlockPos()) : ((Mannequin) holder).position();
+                owner.snapTo(position.add(1, 0, 0));
+                CorpseMenu obsolete = new CorpseMenu(8, owner.getInventory(), holder);
+                test.assertTrue(obsolete.stillValid(owner), "The original corpse menu starts valid: " + mode);
+                CorpseData original = holder.gentleStart$corpse();
+                CorpseData replacement = new CorpseData(owner.getUUID(), owner.getGameProfile().name(), 20);
+                holder.gentleStart$initCorpse(replacement);
+                holder.gentleStart$inventory().setItem(27, new ItemStack(Items.EMERALD, 3));
+                test.assertFalse(obsolete.stillValid(owner), "Replacing metadata invalidates an open menu even for the same owner: " + mode);
+                obsolete.clicked(49, 0, ContainerInput.PICKUP, owner);
+                obsolete.clicked(27, 0, ContainerInput.PICKUP, owner);
+                test.assertTrue(obsolete.quickMoveStack(owner, 27).isEmpty(), "A stale menu cannot directly shift-click the replacement inventory: " + mode);
+                test.assertValueEqual(owner.totalExperience, 0, "A stale menu cannot award obsolete experience: " + mode);
+                test.assertValueEqual(original.experience(), 160, "Rejected stale clicks do not consume the old balance: " + mode);
+                test.assertValueEqual(replacement.experience(), 20, "Rejected stale clicks do not consume the new balance: " + mode);
+                test.assertTrue(obsolete.getCarried().isEmpty(), "A stale menu cannot take replacement items onto its cursor: " + mode);
+                test.assertValueEqual(holder.gentleStart$inventory().countItem(Items.EMERALD), 3, "Replacement items remain intact: " + mode);
+                obsolete.removed(owner);
             });
         }
         test.succeed();
@@ -325,7 +510,7 @@ public class CorpseGameTests {
         test.succeed();
     }
 
-    private static CorpseHolder assertDeathLayout(GameTestHelper test, String mode) {
+    private static ServerPlayer assertDeathLayout(GameTestHelper test, String mode) {
         ServerPlayer owner = player(test, 0);
         ItemStack[] original = populateInventory(owner);
         owner.giveExperiencePoints(160);
@@ -360,7 +545,7 @@ public class CorpseGameTests {
             test.assertTrue(next.getInventory().getItem(slot).isEmpty(), "Respawn does not duplicate captured slot " + slot);
         }
         test.assertValueEqual(next.totalExperience, 0, "Captured experience is not also restored on respawn");
-        return holder;
+        return next;
     }
 
     private static ItemStack[] populateInventory(ServerPlayer owner) {
@@ -379,6 +564,25 @@ public class CorpseGameTests {
 
     private static ProtectionConfig config(String mode, boolean saveExperience) {
         return settings("{\"corpse\":{\"minutes\":-1,\"mode\":\"" + mode + "\",\"saveExperience\":" + saveExperience + "}}");
+    }
+
+    private static Player identityPlayer(GameTestHelper test, UUID id, String name) {
+        return new Player(test.getLevel(), new GameProfile(id, name)) {
+            @Override
+            public GameType gameMode() {
+                return GameType.SURVIVAL;
+            }
+
+            @Override
+            public boolean isClientAuthoritative() {
+                return false;
+            }
+        };
+    }
+
+    private static void openCorpse(ServerPlayer player, CorpseHolder holder) {
+        if (holder instanceof BarrelBlockEntity barrel) player.openMenu(barrel);
+        else player.interactOn((Mannequin) holder, InteractionHand.MAIN_HAND, Vec3.ZERO);
     }
 
     private static List<CorpseHolder> corpses(GameTestHelper test) {

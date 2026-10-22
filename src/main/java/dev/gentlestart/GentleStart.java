@@ -7,6 +7,7 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.player.UseItemCallback;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.level.ServerPlayer;
@@ -60,6 +61,14 @@ public final class GentleStart implements DedicatedServerModInitializer {
         // An unmodified client can send use-item after interacting with a mannequin.
         UseItemCallback.EVENT.register((player, level, hand) -> player.containerMenu instanceof CorpseMenu
                 ? InteractionResult.FAIL : InteractionResult.PASS);
+        PlayerBlockBreakEvents.BEFORE.register((level, player, pos, state, entity) -> {
+            if (entity instanceof CorpseHolder holder && holder.gentleStart$corpse() != null
+                    && !holder.gentleStart$corpse().canAccess(player)) {
+                holder.gentleStart$corpse().denyAccess(player);
+                return false;
+            }
+            return true;
+        });
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             engine.checkConditions(handler.player);
             engine.refreshEffects(handler.player);

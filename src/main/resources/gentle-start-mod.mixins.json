@@ -13,6 +13,7 @@
     "PlayerAdvancementsMixin",
     "ItemEntityMixin",
     "CorpseBarrelMixin",
+    "CorpseBarrelBlockMixin",
     "MannequinAccessor",
     "CorpseMannequinMixin"
   ],

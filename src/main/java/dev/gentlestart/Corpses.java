@@ -31,7 +31,7 @@ public final class Corpses {
             player.sendSystemMessage(Component.literal("[Gentle Start] 附近没有可放置尸体的位置，本次使用普通死亡掉落。"));
             return false;
         }
-        holder.gentleStart$initCorpse(new CorpseData(player.getGameProfile().name(),
+        holder.gentleStart$initCorpse(new CorpseData(player.getUUID(), player.getGameProfile().name(),
                 rule.saveExperience() ? experiencePoints(player) : 0));
         Container target = holder.gentleStart$inventory();
         Inventory source = player.getInventory();

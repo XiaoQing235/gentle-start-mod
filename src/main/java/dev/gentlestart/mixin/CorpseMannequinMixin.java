@@ -57,6 +57,10 @@ abstract class CorpseMannequinMixin extends Avatar implements CorpseHolder {
     @Override
     public InteractionResult interact(Player player, InteractionHand hand, Vec3 location) {
         if (gentleStart$corpse == null) return super.interact(player, hand, location);
+        if (!gentleStart$corpse.canAccess(player)) {
+            gentleStart$corpse.denyAccess(player);
+            return InteractionResult.SUCCESS;
+        }
         if (!player.isSpectator() && gentleStart$inventory.stillValid(player)) {
             if (player.containerMenu instanceof CorpseMenu menu && menu.getContainer() == gentleStart$inventory) {
                 return InteractionResult.SUCCESS;

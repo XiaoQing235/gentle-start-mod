@@ -13,10 +13,12 @@ import net.minecraft.world.item.Items;
 
 /** A vanilla six-row menu; the experience icon is never a stored or transferable item. */
 public final class CorpseMenu extends ChestMenu {
+    private final CorpseHolder holder;
     private final CorpseData corpse;
 
     public CorpseMenu(int id, Inventory inventory, CorpseHolder holder) {
         super(MenuType.GENERIC_9x6, id, inventory, holder.gentleStart$inventory(), 6);
+        this.holder = holder;
         corpse = holder.gentleStart$corpse();
         for (int i = 0; i < CorpseData.SIZE; i++) {
             Slot old = slots.get(i);
@@ -29,7 +31,7 @@ public final class CorpseMenu extends ChestMenu {
 
                 @Override
                 public boolean mayPickup(Player player) {
-                    return index != CorpseData.EXPERIENCE_SLOT;
+                    return corpse.canAccess(player) && index != CorpseData.EXPERIENCE_SLOT;
                 }
 
                 @Override
@@ -44,6 +46,11 @@ public final class CorpseMenu extends ChestMenu {
             replacement.index = i;
             slots.set(i, replacement);
         }
+    }
+
+    @Override
+    public boolean stillValid(Player player) {
+        return holder.gentleStart$corpse() == corpse && corpse.canAccess(player) && super.stillValid(player);
     }
 
     @Override
@@ -63,7 +70,7 @@ public final class CorpseMenu extends ChestMenu {
 
     @Override
     public ItemStack quickMoveStack(Player player, int slot) {
-        return slot < 0 || slot >= CorpseData.SIZE || slot == CorpseData.EXPERIENCE_SLOT
+        return !stillValid(player) || slot < 0 || slot >= CorpseData.SIZE || slot == CorpseData.EXPERIENCE_SLOT
                 ? ItemStack.EMPTY : super.quickMoveStack(player, slot);
     }
 }

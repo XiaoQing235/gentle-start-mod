@@ -10,6 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.Container;
 import net.minecraft.world.entity.ExperienceOrb;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BarrelBlockEntity;
@@ -58,6 +59,16 @@ abstract class CorpseBarrelMixin extends RandomizableContainerBlockEntity implem
         return gentleStart$corpse == null ? super.getName() : gentleStart$corpse.title();
     }
 
+    @Override
+    public boolean canOpen(Player player) {
+        return (gentleStart$corpse == null || gentleStart$corpse.canAccess(player)) && super.canOpen(player);
+    }
+
+    @Override
+    public boolean stillValid(Player player) {
+        return (gentleStart$corpse == null || gentleStart$corpse.canAccess(player)) && super.stillValid(player);
+    }
+
     @Inject(method = "getContainerSize", at = @At("HEAD"), cancellable = true)
     private void gentleStart$size(CallbackInfoReturnable<Integer> callback) {
         if (gentleStart$corpse != null) callback.setReturnValue(CorpseData.SIZE);
@@ -82,6 +93,11 @@ abstract class CorpseBarrelMixin extends RandomizableContainerBlockEntity implem
     @Override
     public boolean canPlaceItem(int slot, ItemStack stack) {
         return gentleStart$corpse == null && super.canPlaceItem(slot, stack);
+    }
+
+    @Override
+    public boolean canTakeItem(Container into, int slot, ItemStack stack) {
+        return gentleStart$corpse == null && super.canTakeItem(into, slot, stack);
     }
 
     @Override
