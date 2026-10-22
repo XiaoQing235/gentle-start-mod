@@ -1,6 +1,7 @@
 package dev.gentlestart.mixin;
 
 import dev.gentlestart.DeathProtection;
+import dev.gentlestart.Corpses;
 import dev.gentlestart.GentleStart;
 import dev.gentlestart.ProtectionEngine.ConditionChange;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
@@ -8,6 +9,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import java.util.HashMap;
 import java.util.Map;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
@@ -20,6 +22,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 abstract class PlayerMixin {
     @WrapMethod(method = "dropEquipment")
     private void gentleStart$dropEquipment(ServerLevel level, Operation<Void> original) {
+        if ((Object) this instanceof ServerPlayer player && Corpses.capture(player)) {
+            original.call(level);
+            return;
+        }
         if (!((Object) this instanceof DeathProtection death) || death.gentleStart$death().slots().isEmpty()) {
             original.call(level);
             return;
@@ -40,7 +46,8 @@ abstract class PlayerMixin {
     @Inject(method = "getBaseExperienceReward", at = @At("RETURN"), cancellable = true)
     private void gentleStart$reduceExperienceDrop(ServerLevel level, CallbackInfoReturnable<Integer> callback) {
         if ((Object) this instanceof DeathProtection death) {
-            callback.setReturnValue((int) Math.floor(callback.getReturnValue() * (1 - death.gentleStart$death().experienceRatio())));
+            callback.setReturnValue(death.gentleStart$corpseExperience() ? 0
+                    : (int) Math.floor(callback.getReturnValue() * (1 - death.gentleStart$death().experienceRatio())));
         }
     }
 

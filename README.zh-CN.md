@@ -26,6 +26,7 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 | 原地免死 | 抵挡致命伤害，恢复指定生命值，可限制次数并附加效果 | `preventDeath` |
 | 重生无敌 | 真正死亡重生后，短暂免疫普通伤害；与免死无敌独立 | `respawnInvulnerability` |
 | 掉落保护 | 延长死亡掉落的存在时间，防火、抵抗普通伤害并禁止合并 | `protectDeathDrops` |
+| 死亡尸体 | 将死亡物品存入 54 格木桶或躺卧玩家模型，可选保存经验 | `deathCorpse` |
 | 状态效果 | 在保护期间持续提供可配置的药水效果 | `protectionEffects` |
 | PvP 保护 | 阻止玩家伤害，可在主动攻击后解除保护 | `pvpProtection` |
 | 伤害减免 | 按比例降低受到的普通伤害 | `damageReduction` |
@@ -113,6 +114,35 @@ Gentle Start 是一个 Minecraft Fabric 服务端模组，为刚加入服务器�
 - `protectDeathDrops`：`lifetimeSeconds` 指定死亡掉落物寿命，默认 `600` 秒，支持 `1～86400` 的整数。按实体更新 tick 计时，区块停止实体更新时暂停。寿命在死亡时确定，已存在的掉落物不随配置修改而改变，保存和读档不会刷新剩余时间。旧版掉落物保留原有倒计时。普通主动丢弃、挖矿掉落和经验球不受影响，其他玩家仍可拾取。
 - `damageReduction`：减免 25% 的传入伤害，在护甲和药水减伤前生效。
 - `mobDetectionRange`：将怪物感知范围缩小到原来的 50%；主动攻击怪物后仍可能被反击。
+
+</details>
+
+<details>
+<summary>使用尸体保存死亡物品</summary>
+
+开启前先关闭物品保留。将以下规则放进 `defaults`，或一起放进某位玩家的覆盖配置：
+
+```json
+{
+  "keepInventory": { "minutes": 0 },
+  "deathCorpse": { "minutes": -1, "mode": "barrel", "saveExperience": true }
+}
+```
+
+`deathCorpse` 默认关闭，使用与其他功能相同的累计游玩期限及 `cancel` 条件。默认配置及每位玩家合并继承后的配置中，它与 `keepInventory` 的 `minutes` 不能同时非零；冲突的修改或重载会报错，保留当前有效配置。原版 `keep_inventory` 游戏规则也优先：开启时不会生成尸体。
+
+- `mode: "barrel"`：生成保存死亡物品的木桶，仅这些指定木桶使用 54 格，普通木桶容量不变。死亡位置被占用时，选择两格范围内最近的可替换位置，不覆盖方块实体；找不到位置时按正常死亡掉落处理。
+- `mode: "player"`：在死亡位置生成与死者同皮肤、躺卧的原版假人，右键打开同样的 54 格容器。两种形式都支持原版客户端；假人的睡姿交互范围较小，右键时需对准生成位置中心附近。
+- 前三行保持主背包排列，第四行放快捷栏；第五行第 1～4 格依次放头盔、胸甲、护腿、靴子，第 9 格放副手物品。
+- `saveExperience: true`：按死亡时的等级和进度计算当前全部可用经验，保存为第六行第五格的附魔之瓶图标，点击一次领取全部存储经验；图标不是可取走投掷的普通经验瓶。尸体保存经验生效时优先于 `keepExperience`，不会在重生时再返还同一份经验。设为 `false` 时，仍按已有经验保留功能和原版经验掉落规则处理。
+
+尸体容器只允许取出，不能放入物品，也没有所有者锁，其他玩家同样可以领取。漏斗可以抽取木桶尸体中的实际物品，但不能向其中放入物品，也不能提取经验。消失诅咒仍按原版在死亡时销毁相应物品，不存入尸体。
+
+打破木桶会掉出剩余物品及经验；对玩家模型执行 `/kill` 也会释放剩余物品及经验并移除模型。关闭尸体功能只停止生成新尸体，已有尸体仍可交互取回内容。
+
+使用命令开启时，先执行 `/gentlestart admin defaults set keepInventory 0`，再执行 `/gentlestart admin defaults rule deathCorpse {"minutes":-1,"mode":"barrel","saveExperience":true}`；将 `"barrel"` 改为 `"player"` 即使用玩家模型。也可以在 `/gentlestart admin ui defaults deathCorpse` 聊天配置页编辑这两个选项，或按 UUID 单独覆盖。
+
+**卸载模组前，请先取回所有现存尸体中的物品和经验。** 扩展库存和经验领取依赖服务端模组，直接卸载不会把尸体转换成可以正常使用的原版 54 格木桶或带库存的假人。
 
 </details>
 

@@ -87,6 +87,7 @@ public final class ProtectionConfig {
         validateProfileFields(defaultJson);
         ProtectionRules.Profile defaults = ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE,
                 merge(encode(ProtectionRules.Profile.DEFAULT), defaultJson)).getOrThrow();
+        validateCompatibility(defaults, "defaults");
         JsonObject entries = root.has("players") ? object(root.get("players"), "players") : new JsonObject();
         JsonObject canonicalEntries = new JsonObject();
         Map<UUID, ProtectionRules.Profile> players = new HashMap<>();
@@ -97,7 +98,10 @@ public final class ProtectionConfig {
             }
             JsonObject override = object(entry.getValue(), "player profile");
             validateProfileFields(override);
-            players.put(id, ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE, merge(encode(defaults), override)).getOrThrow());
+            ProtectionRules.Profile profile = ProtectionRules.Profile.CODEC.parse(JsonOps.INSTANCE,
+                    merge(encode(defaults), override)).getOrThrow();
+            validateCompatibility(profile, "player " + id);
+            players.put(id, profile);
             canonicalEntries.add(id.toString(), override.deepCopy());
         }
         root.addProperty("enabled", enabled);
@@ -163,6 +167,7 @@ public final class ProtectionConfig {
                 case EXPERIENCE -> Set.of("minutes", "cancel", "ratio");
                 case SCORE -> Set.of("minutes", "cancel");
                 case DEATH_DROPS -> Set.of("minutes", "cancel", "lifetimeSeconds");
+                case CORPSE -> Set.of("minutes", "cancel", "mode", "saveExperience");
                 case REVIVE -> Set.of("minutes", "cancel", "uses", "health", "invulnerabilitySeconds", "effects");
                 case RESPAWN_PROTECTION -> Set.of("minutes", "cancel", "durationSeconds");
                 case EFFECTS -> Set.of("minutes", "cancel", "list");
@@ -204,6 +209,12 @@ public final class ProtectionConfig {
                     });
                 }
             }
+        }
+    }
+
+    private static void validateCompatibility(ProtectionRules.Profile profile, String name) {
+        if (profile.corpse().window().minutes() != 0 && profile.inventory().window().minutes() != 0) {
+            throw new IllegalArgumentException(name + ": deathCorpse 与 keepInventory 不能同时开启；请先将其中一项 minutes 设为 0。");
         }
     }
 

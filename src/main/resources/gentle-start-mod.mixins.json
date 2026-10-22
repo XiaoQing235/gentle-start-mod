@@ -11,7 +11,10 @@
     "InventoryMixin",
     "InventoryChangeTriggerMixin",
     "PlayerAdvancementsMixin",
-    "ItemEntityMixin"
+    "ItemEntityMixin",
+    "CorpseBarrelMixin",
+    "MannequinAccessor",
+    "CorpseMannequinMixin"
   ],
   "injectors": {
     "defaultRequire": 1

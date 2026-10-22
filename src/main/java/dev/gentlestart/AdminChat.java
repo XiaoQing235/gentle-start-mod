@@ -60,6 +60,10 @@ final class AdminChat {
         lines.add(title((target == null ? "默认 · " : "玩家 " + target + " · ") + feature.displayName() + " " + current + "/" + pages));
         lines.add(Component.literal("点击编辑预填命令，修改末尾值后回车；每次只保存这一项。悬停查看说明。")
                 .withStyle(ChatFormatting.GRAY));
+        if (feature == Feature.CORPSE) {
+            lines.add(Component.literal("开启前需将物品保留（keepInventory）的 minutes 设为 0；仅死亡尸体使用 54 格。")
+                    .withStyle(ChatFormatting.GRAY));
+        }
         String prefix = "ui set " + (target == null ? "defaults" : target) + " " + feature.configName() + " ";
         fields.entrySet().stream().skip((current - 1L) * PAGE_SIZE).limit(PAGE_SIZE).forEach(entry -> {
             String field = entry.getKey();
@@ -155,6 +159,8 @@ final class AdminChat {
             case "invulnerabilitySeconds" -> "每次免死后的独立无敌秒数（整数，0～86400）";
             case "durationSeconds" -> "每次无敌秒数（整数，0～86400）";
             case "lifetimeSeconds" -> "掉落物寿命（整数秒，1～86400）";
+            case "mode" -> "尸体形式：\"barrel\" 木桶 / \"player\" 同皮肤躺卧玩家模型";
+            case "saveExperience" -> "全部可用经验保存在第六行中间，点击经验瓶领取；优先于经验保留";
             case "reduction" -> "伤害减免比例（0～1）";
             case "multiplier" -> "怪物感知范围倍数（0～1）";
             case "removeOnAttack" -> "主动攻击时解除 PvP 保护";

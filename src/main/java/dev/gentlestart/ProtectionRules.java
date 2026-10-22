@@ -185,12 +185,23 @@ public final class ProtectionRules {
         ).apply(instance, DeathDrops::new));
     }
 
+    public record Corpse(Window window, String mode, boolean saveExperience) {
+        public static final Corpse DEFAULT = new Corpse(Window.DISABLED, "barrel", true);
+        private static final Codec<String> MODE = Codec.STRING.validate(mode -> mode.equals("barrel") || mode.equals("player")
+                ? DataResult.success(mode) : DataResult.error(() -> "Corpse mode must be barrel or player"));
+        public static final Codec<Corpse> CODEC = RecordCodecBuilder.create(instance -> instance.group(
+                Window.CODEC.forGetter(Corpse::window),
+                field(MODE, "mode", "barrel").forGetter(Corpse::mode),
+                field(Codec.BOOL, "saveExperience", true).forGetter(Corpse::saveExperience)
+        ).apply(instance, Corpse::new));
+    }
+
     public record Profile(Inventory inventory, Experience experience, Window score, Revive revive,
                           Effects effects, Pvp pvp, Reduction damageReduction, MobRange mobRange,
-                          RespawnProtection respawnProtection, DeathDrops deathDrops) {
+                          RespawnProtection respawnProtection, DeathDrops deathDrops, Corpse corpse) {
         public static final Profile DEFAULT = new Profile(Inventory.DEFAULT, Experience.DEFAULT,
                 new Window(120, Cancellation.NONE), Revive.DEFAULT, Effects.DEFAULT, Pvp.DEFAULT,
-                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, DeathDrops.DEFAULT);
+                Reduction.DEFAULT, MobRange.DEFAULT, RespawnProtection.DEFAULT, DeathDrops.DEFAULT, Corpse.DEFAULT);
         public static final Codec<Profile> CODEC = RecordCodecBuilder.create(instance -> instance.group(
                 field(Inventory.CODEC, "inventory", Inventory.DEFAULT).forGetter(Profile::inventory),
                 field(Experience.CODEC, "experience", Experience.DEFAULT).forGetter(Profile::experience),
@@ -201,7 +212,8 @@ public final class ProtectionRules {
                 field(Reduction.CODEC, "damageReduction", Reduction.DEFAULT).forGetter(Profile::damageReduction),
                 field(MobRange.CODEC, "mobRange", MobRange.DEFAULT).forGetter(Profile::mobRange),
                 field(RespawnProtection.CODEC, "respawnProtection", RespawnProtection.DEFAULT).forGetter(Profile::respawnProtection),
-                field(DeathDrops.CODEC, "deathDrops", DeathDrops.DEFAULT).forGetter(Profile::deathDrops)
+                field(DeathDrops.CODEC, "deathDrops", DeathDrops.DEFAULT).forGetter(Profile::deathDrops),
+                field(Corpse.CODEC, "corpse", Corpse.DEFAULT).forGetter(Profile::corpse)
         ).apply(instance, Profile::new));
 
         public Window window(Feature feature) {
@@ -216,6 +228,7 @@ public final class ProtectionRules {
                 case MOB_RANGE -> mobRange.window();
                 case RESPAWN_PROTECTION -> respawnProtection.window();
                 case DEATH_DROPS -> deathDrops.window();
+                case CORPSE -> corpse.window();
             };
         }
     }

@@ -6,10 +6,12 @@ import net.fabricmc.fabric.api.entity.event.v1.ServerLivingEntityEvents;
 import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.event.player.UseItemCallback;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.storage.LevelResource;
 import org.slf4j.Logger;
@@ -52,7 +54,12 @@ public final class GentleStart implements DedicatedServerModInitializer {
             }
         });
         CommandRegistrationCallback.EVENT.register((dispatcher, context, selection) -> ProtectionCommands.register(dispatcher));
-        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) -> engine.allowDamage(entity, source, amount));
+        ServerLivingEntityEvents.ALLOW_DAMAGE.register((entity, source, amount) ->
+                !(entity instanceof CorpseHolder holder && holder.gentleStart$corpse() != null)
+                        && engine.allowDamage(entity, source, amount));
+        // An unmodified client can send use-item after interacting with a mannequin.
+        UseItemCallback.EVENT.register((player, level, hand) -> player.containerMenu instanceof CorpseMenu
+                ? InteractionResult.FAIL : InteractionResult.PASS);
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             engine.checkConditions(handler.player);
             engine.refreshEffects(handler.player);

@@ -12,7 +12,9 @@
       "dev.gentlestart.DeathDropGameTests",
       "dev.gentlestart.AdminChatGameTests",
       "dev.gentlestart.StatePersistenceGameTests",
-      "dev.gentlestart.EffectsGameTests"
+      "dev.gentlestart.EffectsGameTests",
+      "dev.gentlestart.CorpseConfigGameTests",
+      "dev.gentlestart.CorpseGameTests"
     ]
   }
 }

@@ -5,7 +5,7 @@ import java.util.Arrays;
 public enum Feature {
     INVENTORY("inventory"), EXPERIENCE("experience"), SCORE("score"), REVIVE("revive"),
     EFFECTS("effects"), PVP("pvp"), DAMAGE_REDUCTION("damageReduction"), MOB_RANGE("mobRange"),
-    RESPAWN_PROTECTION("respawnProtection"), DEATH_DROPS("deathDrops");
+    RESPAWN_PROTECTION("respawnProtection"), DEATH_DROPS("deathDrops"), CORPSE("corpse");
 
     private final String id;
 
@@ -29,6 +29,7 @@ public enum Feature {
             case MOB_RANGE -> "mobDetectionRange";
             case RESPAWN_PROTECTION -> "respawnInvulnerability";
             case DEATH_DROPS -> "protectDeathDrops";
+            case CORPSE -> "deathCorpse";
         };
     }
 
@@ -44,6 +45,7 @@ public enum Feature {
             case MOB_RANGE -> "怪物感知范围";
             case RESPAWN_PROTECTION -> "重生无敌";
             case DEATH_DROPS -> "死亡掉落物保护";
+            case CORPSE -> "死亡尸体";
         };
     }
 

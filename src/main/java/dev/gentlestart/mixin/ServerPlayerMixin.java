@@ -23,6 +23,8 @@ abstract class ServerPlayerMixin implements DeathProtection {
     private boolean gentleStart$protectDrops;
     @Unique
     private int gentleStart$dropLifetimeSeconds = 600;
+    @Unique
+    private boolean gentleStart$corpseExperience;
 
     @Inject(method = "die", at = @At("HEAD"))
     private void gentleStart$captureDeath(DamageSource source, CallbackInfo callback) {
@@ -30,6 +32,7 @@ abstract class ServerPlayerMixin implements DeathProtection {
         ProtectionEngine engine = GentleStart.engine();
         engine.states().endReviveProtection(player.getUUID());
         gentleStart$protectDrops = false;
+        gentleStart$corpseExperience = false;
         // Keep this decision through the old player's later removal and container cleanup.
         gentleStart$protectDrops = engine.active(player, Feature.DEATH_DROPS);
         gentleStart$dropLifetimeSeconds = engine.profile(player).deathDrops().lifetimeSeconds();
@@ -76,5 +79,20 @@ abstract class ServerPlayerMixin implements DeathProtection {
     @Override
     public int gentleStart$dropLifetimeSeconds() {
         return gentleStart$dropLifetimeSeconds;
+    }
+
+    @Override
+    public void gentleStart$createdCorpse(boolean savesExperience) {
+        gentleStart$corpseExperience = savesExperience;
+        if (savesExperience) {
+            DeathSnapshot old = gentleStart$death;
+            gentleStart$death = new DeathSnapshot(old.slots(), 0, old.keepScore(), old.level(),
+                    old.totalExperience(), old.experienceProgress(), old.score());
+        }
+    }
+
+    @Override
+    public boolean gentleStart$corpseExperience() {
+        return gentleStart$corpseExperience;
     }
 }

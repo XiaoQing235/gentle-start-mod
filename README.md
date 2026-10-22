@@ -26,6 +26,7 @@ By default, players with less than **120 minutes** of cumulative playtime keep t
 | Prevent death | Survive lethal damage and restore health, with configurable uses and additional effects | `preventDeath` |
 | Respawn invulnerability | Temporarily block ordinary damage after an actual death and respawn, independently of death-prevention invulnerability | `respawnInvulnerability` |
 | Protect death drops | Extend the lifetime of death drops, protect them from fire and ordinary damage, and prevent merging | `protectDeathDrops` |
+| Death corpse | Store death inventory in a 54-slot barrel or a lying player model, with optional experience recovery | `deathCorpse` |
 | Status effects | Continuously apply configurable effects during protection | `protectionEffects` |
 | PvP protection | Block damage from players, optionally ending protection when attacking another player | `pvpProtection` |
 | Damage reduction | Reduce ordinary incoming damage by a configurable fraction | `damageReduction` |
@@ -113,6 +114,35 @@ Place the desired rules under `defaults` or an individual player's configuration
 - `protectDeathDrops`: `lifetimeSeconds` sets death-drop lifetime, default `600` seconds, integer range `1–86400`. It counts entity ticks and pauses when the chunk stops ticking entities. Lifetime is captured at death; changing the configuration does not alter existing drops, and saving/loading does not refresh their remaining lifetime. Legacy drops retain their existing countdown. Ordinary manually dropped items, mining drops, and experience orbs are unaffected. Other players can still pick up protected drops.
 - `damageReduction`: reduce incoming damage by 25%, before armor and potion damage reduction.
 - `mobDetectionRange`: reduce mob detection range to 50% of its original value. Mobs may still retaliate when attacked.
+
+</details>
+
+<details>
+<summary>Save death inventory in a corpse</summary>
+
+Disable inventory retention before enabling corpses. Place these rules under `defaults`, or together in one player's override:
+
+```json
+{
+  "keepInventory": { "minutes": 0 },
+  "deathCorpse": { "minutes": -1, "mode": "barrel", "saveExperience": true }
+}
+```
+
+`deathCorpse` is disabled by default. It follows the same playtime thresholds and `cancel` conditions as other features. Its `minutes` and `keepInventory.minutes` cannot both be nonzero in any effective default or per-player profile, including inherited values. Conflicting edits and reloads are rejected without replacing the current configuration. Vanilla `keep_inventory` also takes priority: when enabled, death does not create a corpse.
+
+- `mode: "barrel"` creates a death-storage barrel. Only these designated barrels use 54 slots; ordinary barrels retain their normal capacity. If the death position is occupied, it uses the nearest replaceable position within two blocks without overwriting a block entity. If none is available, normal death drops apply.
+- `mode: "player"` creates a lying vanilla mannequin with the deceased player's skin at the death location. Right-click it to open the same 54-slot inventory. Both presentations work with vanilla clients; the sleeping mannequin has a small interaction area, so aim near the center of its spawn position.
+- The first three rows preserve the main inventory layout; row four contains the hotbar. Row five places helmet, chestplate, leggings, and boots in columns 1–4 and the offhand item in column 9.
+- `saveExperience: true` calculates all currently spendable experience from the level and progress at death, then saves it as a clickable experience-bottle icon in row six, column five. Clicking it grants the stored experience once; the icon is not an ordinary throwable bottle. While this is active, corpse experience saving takes priority over `keepExperience`, so experience is not also restored on respawn. With `false`, existing experience-retention and vanilla experience-drop rules apply.
+
+Corpse inventories allow retrieval only, with no item deposits or owner lock: other players can retrieve the contents too. Hoppers can extract actual items from barrel corpses, but cannot insert items or collect the stored experience. Curse of Vanishing still destroys affected items on death according to vanilla rules; those items do not enter the corpse.
+
+Breaking a barrel releases its remaining items and experience. Using `/kill` on a player model also releases its remaining items and experience and removes the model. Disabling the corpse feature stops new corpses from spawning while leaving existing corpses accessible.
+
+To enable the feature through commands, first run `/gentlestart admin defaults set keepInventory 0`, then `/gentlestart admin defaults rule deathCorpse {"minutes":-1,"mode":"barrel","saveExperience":true}`. Use `"player"` for the player model. The chat editor at `/gentlestart admin ui defaults deathCorpse` supports both options and per-player overrides.
+
+Retrieve every item and any saved experience from existing corpses **before uninstalling the mod**. The extra inventory and experience recovery require the server mod; removing it does not convert a corpse into a fully usable vanilla 54-slot barrel or inventory-bearing mannequin.
 
 </details>
 

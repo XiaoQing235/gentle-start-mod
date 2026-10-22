@@ -100,6 +100,9 @@ final class ConfigFormat {
             case "mobDetectionRange" -> "缩小怪物对受保护玩家的感知范围。";
             case "respawnInvulnerability" -> "真正死亡重生后的短暂无敌，与免死无敌独立。";
             case "protectDeathDrops" -> "保护死亡掉落物免受伤害并设置消失时间；不限制他人拾取。";
+            case "deathCorpse" -> "死亡后用 54 格尸体保存物品；与 keepInventory 互斥，需先关闭物品保留。";
+            case "mode" -> "尸体形式：barrel 为木桶，player 为同皮肤的躺卧玩家模型；只影响之后的尸体。";
+            case "saveExperience" -> "将全部可用经验存入尸体第六行中间的经验瓶，点击领取；生效时优先于 keepExperience。";
             case "minutes" -> "累计游玩分钟上限：0 关闭，负数永久，正数到期结束。";
             case "cancel" -> "提前取消本功能的条件；达成历史会保存，取消后需管理员重置。";
             case "requireAll" -> "true 需要达成全部条件（可先后达成）；false 任意一项即可；空条件不会取消。";

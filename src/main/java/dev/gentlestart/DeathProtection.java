@@ -8,6 +8,10 @@ public interface DeathProtection {
 
     int gentleStart$dropLifetimeSeconds();
 
+    void gentleStart$createdCorpse(boolean savesExperience);
+
+    boolean gentleStart$corpseExperience();
+
     default boolean gentleStart$keepInventory() {
         return !gentleStart$death().slots().isEmpty();
     }

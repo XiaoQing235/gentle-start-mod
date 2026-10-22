@@ -209,6 +209,7 @@ public final class ProtectionCommands {
                 "player <UUID> [show|set|grant|rule|clear|cancel|reset|revives]", "copy <源UUID> <目标UUID>")) {
             reply(context, "/gentlestart admin " + command, false);
         }
+        reply(context, "deathCorpse：先关闭同一配置的 keepInventory，再设 minutes；mode 为 barrel 或 player，saveExperience 控制经验瓶。", false);
         return 1;
     }
 
